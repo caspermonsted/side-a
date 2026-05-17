@@ -38,7 +38,7 @@ export async function fetchTracks({ decades, difficulty, genre, count = 60 }) {
     for (const offset of offsets) {
       try {
         const data = await apiFetch(
-          `/search?q=${encodeURIComponent(q)}&type=track&limit=50&offset=${offset}&market=DK`
+          `/search?q=${encodeURIComponent(q)}&type=track&limit=50&offset=${offset}`
         )
         if (data.tracks?.items) {
           const filtered = data.tracks.items.filter(t =>
