@@ -22,32 +22,43 @@ const DECADE_RANGES = {
 
 const POPULARITY = {
   easy:   { min: 75, max: 100 },
-  medium: { min: 50, max: 78 },
-  hard:   { min: 25, max: 55 },
+  medium: { min: 45, max: 100 },
+  hard:   { min: 20, max: 65 },
+}
+
+const GENRE_SEEDS = {
+  all:       ['pop', 'rock', 'hip-hop', 'dance'],
+  pop:       ['pop', 'dance pop', 'synth-pop'],
+  rock:      ['rock', 'classic rock', 'hard rock'],
+  'hip-hop': ['hip-hop', 'rap'],
+  dance:     ['dance', 'electronic', 'house'],
+  'r&b':     ['r-n-b', 'soul', 'funk'],
 }
 
 export async function fetchTracks({ decades, difficulty, genre, count = 60 }) {
   const { min, max } = POPULARITY[difficulty]
-  const perDecade = Math.ceil((count * 2) / decades.length)
+  const seeds = (GENRE_SEEDS[genre] || GENRE_SEEDS['all']).slice(0, 2).join(',')
   const all = []
 
   for (const decade of decades) {
     const [from, to] = DECADE_RANGES[decade]
-    let q = `year:${from}-${to}`
-    if (genre && genre !== 'all') q += ` genre:"${genre}"`
-
-    const data = await apiFetch(
-      `/search?q=${encodeURIComponent(q)}&type=track&limit=50`
-    )
-    if (data.tracks?.items) {
-      const filtered = data.tracks.items.filter(t =>
-        t.popularity >= min &&
-        t.popularity <= max &&
-        t.album?.release_date
-      )
+    const params = new URLSearchParams({
+      seed_genres: seeds,
+      min_popularity: min,
+      limit: 50,
+    })
+    const data = await apiFetch(`/recommendations?${params}`)
+    if (data.tracks) {
+      const filtered = data.tracks.filter(t => {
+        if (!t.album?.release_date) return false
+        const year = parseInt(t.album.release_date.slice(0, 4))
+        return year >= from && year <= to
+      })
       all.push(...filtered)
     }
   }
+
+  if (all.length === 0) throw new Error('Ingen sange fundet. Prøv andre indstillinger.')
 
   const seen = new Set()
   const unique = all.filter(t => {
