@@ -37,9 +37,8 @@ export async function fetchTracks({ decades, difficulty, genre, count = 60 }) {
     let q = `year:${from}-${to}`
     if (genre && genre !== 'all') q += ` genre:${genre}`
 
-    const qEncoded = `year:${from}-${to}` + (genre && genre !== 'all' ? `+genre:${genre}` : '')
-    const url = `/search?q=${qEncoded}&type=track&limit=20`
-    debugLines.push(`${decade}: q="${qEncoded}"`)
+    const url = `/search?q=pop&type=track&limit=10`
+    debugLines.push(`${decade}: TEST q=pop`)
 
     const data = await apiFetch(url)
     const total = data.tracks?.items?.length ?? 0
