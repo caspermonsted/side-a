@@ -24,7 +24,7 @@ export default function Setup({ onStart, onLogout }) {
   const [decades, setDecades] = useState(['80s', '90s', '00s', '10s'])
   const [difficulty, setDifficulty] = useState('medium')
   const [genre, setGenre] = useState('all')
-  const [rounds, setRounds] = useState(20)
+  const rounds = 10
 
   function toggleDecade(d) {
     setDecades(prev =>
@@ -230,28 +230,6 @@ export default function Setup({ onStart, onLogout }) {
               >{g.label}</button>
             )
           })}
-        </div>
-      </SectionBlock>
-
-      {/* A5 — Runder */}
-      <SectionBlock number="A5" title="Rounds" sub="Per game">
-        <div style={{ display: 'flex', gap: '0.4rem' }}>
-          {[10, 20, 30].map(n => (
-            <button
-              key={n}
-              onClick={() => setRounds(n)}
-              style={{
-                flex: 1,
-                border: `1px solid ${rounds === n ? 'var(--ink)' : 'var(--border)'}`,
-                background: rounds === n ? 'var(--ink)' : 'transparent',
-                color: rounds === n ? 'var(--bg)' : 'var(--ink)',
-                fontFamily: "'Playfair Display', serif",
-                fontStyle: 'italic', fontWeight: 800,
-                fontSize: '1.5rem', padding: '0.6rem 0',
-                cursor: 'pointer',
-              }}
-            >{n}</button>
-          ))}
         </div>
       </SectionBlock>
 
