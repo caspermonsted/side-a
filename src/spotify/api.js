@@ -36,19 +36,16 @@ export async function fetchTracks({ decades, difficulty, genre, count = 60 }) {
     let q = `year:${from}-${to}`
     if (genre && genre !== 'all') q += ` genre:"${genre}"`
 
-    const offsets = [0, 50]
-    for (const offset of offsets) {
-      const data = await apiFetch(
-        `/search?q=${encodeURIComponent(q)}&type=track&limit=50&offset=${offset}`
+    const data = await apiFetch(
+      `/search?q=${encodeURIComponent(q)}&type=track&limit=50`
+    )
+    if (data.tracks?.items) {
+      const filtered = data.tracks.items.filter(t =>
+        t.popularity >= min &&
+        t.popularity <= max &&
+        t.album?.release_date
       )
-      if (data.tracks?.items) {
-        const filtered = data.tracks.items.filter(t =>
-          t.popularity >= min &&
-          t.popularity <= max &&
-          t.album?.release_date
-        )
-        all.push(...filtered)
-      }
+      all.push(...filtered)
     }
   }
 
