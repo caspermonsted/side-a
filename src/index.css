@@ -1,27 +1,25 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg: #0a0a0a;
-  --surface: #141414;
-  --card: #1c1c1e;
-  --card2: #242426;
-  --accent: #ff2d55;
-  --accent2: #ff9f0a;
-  --green: #30d158;
-  --blue: #0a84ff;
-  --text: #ffffff;
-  --text2: rgba(255,255,255,0.6);
-  --text3: rgba(255,255,255,0.3);
-  --border: rgba(255,255,255,0.08);
-  --radius: 14px;
-  --radius-lg: 20px;
+  --bg: #f4efe6;
+  --surface: #ede8df;
+  --card: #fdf8f2;
+  --ink: #111;
+  --ink2: #2a261f;
+  --muted: #7a7264;
+  --accent: #c4533a;
+  --accent2: #8b1414;
+  --green: #3a5d4a;
+  --border: #c8bfae;
+  --border2: #111;
+  --radius: 4px;
 }
 
 html, body, #root {
   height: 100%;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
   background: var(--bg);
-  color: var(--text);
+  color: var(--ink);
   -webkit-font-smoothing: antialiased;
   -webkit-text-size-adjust: 100%;
 }
@@ -30,70 +28,75 @@ button {
   cursor: pointer;
   border: none;
   font-family: inherit;
-  font-size: 1rem;
-  border-radius: var(--radius);
-  padding: 0.75rem 1.5rem;
+  font-size: 0.85rem;
+  border-radius: 0;
+  padding: 0.75rem 1.25rem;
   transition: opacity 0.15s, transform 0.1s;
   -webkit-tap-highlight-color: transparent;
 }
 
-button:active { transform: scale(0.97); opacity: 0.85; }
-button:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
+button:active { opacity: 0.75; transform: scale(0.98); }
+button:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
 
+/* Primary action button — dark fill */
 .btn-primary {
+  background: var(--ink);
+  color: var(--bg);
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-weight: 700;
+  font-size: 1.1rem;
+  width: 100%;
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  letter-spacing: -0.01em;
+}
+
+/* Reveal / positive action — terracotta */
+.btn-reveal {
   background: var(--accent);
   color: #fff;
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
   font-weight: 700;
-  font-size: 1.05rem;
+  font-size: 1.1rem;
   width: 100%;
-  padding: 1rem;
-  border-radius: var(--radius-lg);
-  letter-spacing: -0.01em;
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.btn-secondary {
-  background: var(--card2);
-  color: var(--text);
-  width: 100%;
-  padding: 1rem;
-  border-radius: var(--radius-lg);
-  font-weight: 600;
-}
-
-.btn-green {
-  background: var(--green);
-  color: #000;
-  font-weight: 700;
-  font-size: 1.05rem;
-  width: 100%;
-  padding: 1rem;
-  border-radius: var(--radius-lg);
-  letter-spacing: -0.01em;
-}
-
+/* Ghost / disabled state */
 .btn-ghost {
   background: transparent;
-  color: var(--text2);
-  font-size: 0.85rem;
-  padding: 0.4rem 0.75rem;
-  border-radius: 8px;
+  color: var(--muted);
   border: 1px solid var(--border);
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  padding: 0.5rem 0.9rem;
 }
 
+/* Text input */
 input[type="text"] {
   width: 100%;
-  padding: 0.9rem 1rem;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text);
-  font-size: 1rem;
-  font-family: inherit;
+  padding: 0.75rem 0;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--ink);
+  font-family: 'Playfair Display', serif;
+  font-size: 1.3rem;
+  font-weight: 700;
+  outline: none;
 }
 
-input[type="text"]::placeholder { color: var(--text3); }
-input[type="text"]:focus { outline: none; border-color: var(--blue); }
+input[type="text"]::placeholder { color: var(--border); }
+input[type="text"]:focus { border-bottom-color: var(--ink); }
 
+/* Page wrapper */
 .page {
   min-height: 100%;
   display: flex;
@@ -103,10 +106,39 @@ input[type="text"]:focus { outline: none; border-color: var(--blue); }
   margin: 0 auto;
 }
 
-.label {
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: var(--text3);
+/* Mono label / section header */
+.mono {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+}
+
+/* Serif italic heading */
+.serif {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-weight: 700;
+}
+
+/* Physical card — used for timeline and mystery */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Turntable spin animation */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Playback bar pulse */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
 }
