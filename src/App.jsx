@@ -27,9 +27,14 @@ export default function App() {
     setGameSettings(null)
   }
 
+  function handleLogout() {
+    import('./spotify/auth').then(({ logout }) => logout())
+    setPage('login')
+  }
+
   if (page === 'callback') return <Callback onDone={handleLoggedIn} />
   if (page === 'login') return <Login />
-  if (page === 'setup') return <Setup onStart={handleStart} />
+  if (page === 'setup') return <Setup onStart={handleStart} onLogout={handleLogout} />
   if (page === 'game') return <Game settings={gameSettings} onQuit={handleQuit} />
   return null
 }

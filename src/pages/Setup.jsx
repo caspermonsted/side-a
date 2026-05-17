@@ -15,7 +15,7 @@ const DIFFICULTIES = [
   { value: 'hard', label: 'Svær', desc: 'Obskurt' },
 ]
 
-export default function Setup({ onStart }) {
+export default function Setup({ onStart, onLogout }) {
   const [team1, setTeam1] = useState('Hold 1')
   const [team2, setTeam2] = useState('Hold 2')
   const [decades, setDecades] = useState(['80s', '90s', '00s', '10s'])
@@ -37,9 +37,10 @@ export default function Setup({ onStart }) {
 
   return (
     <div className="page" style={{ gap: '0', paddingTop: '2rem', paddingBottom: '2rem' }}>
-      <h1 style={{ fontSize: '1.8rem', fontWeight: 900, letterSpacing: '-0.03em', marginBottom: '2rem' }}>
-        Nyt spil
-      </h1>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem' }}>
+        <h1 style={{ fontSize: '1.8rem', fontWeight: 900, letterSpacing: '-0.03em' }}>Nyt spil</h1>
+        <button className="btn-ghost" onClick={onLogout} style={{ fontSize: '0.78rem' }}>Log ud</button>
+      </div>
 
       <Section label="Hold">
         <input type="text" value={team1} onChange={e => setTeam1(e.target.value)} placeholder="Hold 1" maxLength={20} />
