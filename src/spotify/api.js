@@ -10,8 +10,8 @@ async function apiFetch(path, retry = 0) {
     headers: { Authorization: `Bearer ${token}` },
   })
   if (res.status === 204) return {}
-  if (res.status === 429 && retry < 3) {
-    const wait = parseInt(res.headers.get('Retry-After') || '2') * 1000
+  if (res.status === 429 && retry < 5) {
+    const wait = parseInt(res.headers.get('Retry-After') || '10') * 1000
     await sleep(wait)
     return apiFetch(path, retry + 1)
   }
@@ -40,18 +40,22 @@ export async function fetchTracks({ decades, difficulty, genre, count = 60 }) {
   const { min, max } = POPULARITY[difficulty]
   const all = []
 
-  for (const decade of decades) {
-    const [from, to] = DECADE_RANGES[decade]
-    let q = `year:${from}-${to}`
-    if (genre && genre !== 'all') q += `+genre:${genre}`
+  const years = decades.flatMap(d => DECADE_RANGES[d])
+  const minYear = Math.min(...years)
+  const maxYear = Math.max(...years)
 
-    await sleep(300)
-    const url = `/search?q=${q}&type=track&limit=10`
-    const data = await apiFetch(url)
-    if (data.tracks?.items) {
-      const filtered = data.tracks.items.filter(t => t.album?.release_date)
-      all.push(...filtered)
-    }
+  let q = `year:${minYear}-${maxYear}`
+  if (genre && genre !== 'all') q += `+genre:${genre}`
+
+  const url = `/search?q=${q}&type=track&limit=10`
+  const data = await apiFetch(url)
+  if (data.tracks?.items) {
+    const filtered = data.tracks.items.filter(t => {
+      if (!t.album?.release_date) return false
+      const year = parseInt(t.album.release_date.slice(0, 4))
+      return decades.some(d => year >= DECADE_RANGES[d][0] && year <= DECADE_RANGES[d][1])
+    })
+    all.push(...filtered)
   }
 
   if (all.length === 0) throw new Error('Ingen sange fundet. Prøv andre indstillinger.')
