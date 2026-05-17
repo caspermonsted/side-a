@@ -102,7 +102,7 @@ export default function Game({ settings, onQuit }) {
       try {
         let t
         if (settings.demo) {
-          t = shuffled(DEMO_TRACKS).slice(0, settings.rounds || 20)
+          t = shuffled(DEMO_TRACKS)
         } else {
           await initPlayer()
           t = await fetchTracks(settings)
@@ -126,7 +126,6 @@ export default function Game({ settings, onQuit }) {
 
   const currentTrack = tracks[trackIdx]
   const currentTeam = teams[teamIdx]
-  const totalRounds = Math.min(settings.rounds, tracks.length)
 
   async function handlePlay() {
     try {
@@ -205,12 +204,14 @@ export default function Game({ settings, onQuit }) {
     setPhase(PHASE.JUDGED)
   }
 
+  const TARGET = 10
+
   function handleNext() {
-    const nextIdx = trackIdx + 1
-    if (nextIdx >= totalRounds) {
+    const gameOver = teams.some(t => t.score >= TARGET) || trackIdx + 1 >= tracks.length
+    if (gameOver) {
       setPhase(PHASE.DONE)
     } else {
-      setTrackIdx(nextIdx)
+      setTrackIdx(t => t + 1)
       setTeamIdx(t => 1 - t)
       setPlacedSlot(null)
       setYearCorrect(null)
@@ -279,7 +280,7 @@ export default function Game({ settings, onQuit }) {
                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: t.color, flexShrink: 0 }} />
                 <span style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: '0.9rem' }}>{t.name}</span>
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.9rem', fontWeight: 700 }}>
-                  {t.score}<span style={{ opacity: 0.4, fontSize: '0.7rem' }}>/{totalRounds}</span>
+                  {t.score}<span style={{ opacity: 0.4, fontSize: '0.7rem' }}>/10</span>
                 </span>
               </div>
             ))}
@@ -370,7 +371,7 @@ export default function Game({ settings, onQuit }) {
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: t.color, flexShrink: 0 }} />
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.72rem', flex: 1 }}>{t.name}</span>
             <span style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: '0.95rem' }}>
-              {t.score}<span style={{ opacity: 0.35, fontSize: '0.7rem' }}>/{totalRounds}</span>
+              {t.score}<span style={{ opacity: 0.35, fontSize: '0.7rem' }}>/10</span>
             </span>
           </div>
         ))}
