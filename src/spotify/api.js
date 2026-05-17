@@ -39,11 +39,7 @@ export async function fetchTracks({ decades, difficulty, genre, count = 60 }) {
     const url = `/search?q=${q}&type=track&limit=10`
     const data = await apiFetch(url)
     if (data.tracks?.items) {
-      const filtered = data.tracks.items.filter(t =>
-        t.album?.release_date &&
-        t.popularity >= min &&
-        t.popularity <= max
-      )
+      const filtered = data.tracks.items.filter(t => t.album?.release_date)
       all.push(...filtered)
     }
   }
