@@ -11,7 +11,9 @@ async function apiFetch(path, retry = 0) {
   })
   if (res.status === 204) return {}
   if (res.status === 429) {
-    throw new Error('Spotify er midlertidigt overbelastet. Vent 1-2 minutter og prøv igen.')
+    const retryAfter = res.headers.get('Retry-After')
+    const wait = retryAfter ? ` Vent ${retryAfter} sekunder.` : ' Vent nogle minutter.'
+    throw new Error(`Spotify rate limit nået.${wait} Prøv igen senere.`)
   }
   const text = await res.text()
   if (!res.ok) throw new Error(`Spotify fejl (${res.status})`)
