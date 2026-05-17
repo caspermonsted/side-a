@@ -541,26 +541,56 @@ function buildTimelineItems(timeline) {
 // ─── Vinyl component ─────────────────────────────────────────
 function Vinyl({ size, spinning, color, year }) {
   return (
-    <div style={{
-      width: size, height: size,
-      borderRadius: '50%',
-      background: '#1c1810',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      position: 'relative',
-      boxShadow: '0 6px 28px rgba(0,0,0,0.25)',
-      animation: spinning ? 'spin 2.4s linear infinite' : 'none',
-      flexShrink: 0,
-    }}>
-      {[0.84, 0.70, 0.57].map((r, i) => (
-        <div key={i} style={{
-          position: 'absolute',
-          width: size * r, height: size * r,
+    <div style={{ width: size, height: size, position: 'relative', flexShrink: 0 }}>
+      {/* Disc — only this part spins */}
+      <div style={{
+        width: size, height: size,
+        borderRadius: '50%',
+        background: '#1c1810',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        position: 'absolute',
+        boxShadow: '0 6px 28px rgba(0,0,0,0.25)',
+        animation: spinning ? 'spin 2.4s linear infinite' : 'none',
+      }}>
+        {[0.84, 0.70, 0.57].map((r, i) => (
+          <div key={i} style={{
+            position: 'absolute',
+            width: size * r, height: size * r,
+            borderRadius: '50%',
+            border: '1px solid rgba(255,255,255,0.05)',
+            pointerEvents: 'none',
+          }} />
+        ))}
+        {/* Label */}
+        <div style={{
+          width: size * 0.38, height: size * 0.38,
           borderRadius: '50%',
-          border: '1px solid rgba(255,255,255,0.05)',
-          pointerEvents: 'none',
-        }} />
-      ))}
-      {/* Tonearm */}
+          background: color,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1,
+          position: 'relative',
+        }}>
+          {year ? (
+            <span style={{
+              fontFamily: "'Playfair Display', serif",
+              fontStyle: 'italic', fontWeight: 900,
+              fontSize: size * 0.12,
+              color: '#fff',
+              letterSpacing: '-0.02em',
+            }}>{year}</span>
+          ) : (
+            <span style={{ fontSize: size * 0.14, color: 'rgba(255,255,255,0.8)' }}>♪</span>
+          )}
+          <div style={{
+            position: 'absolute',
+            width: size * 0.06, height: size * 0.06,
+            borderRadius: '50%',
+            background: 'var(--bg)',
+          }} />
+        </div>
+      </div>
+
+      {/* Tonearm — outside the spinning disc, stays fixed */}
       <div style={{
         position: 'absolute',
         top: size * 0.04,
@@ -573,33 +603,6 @@ function Vinyl({ size, spinning, color, year }) {
         transform: 'rotate(-30deg)',
         zIndex: 2,
       }} />
-      {/* Label */}
-      <div style={{
-        width: size * 0.38, height: size * 0.38,
-        borderRadius: '50%',
-        background: color,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 1,
-        position: 'relative',
-      }}>
-        {year ? (
-          <span style={{
-            fontFamily: "'Playfair Display', serif",
-            fontStyle: 'italic', fontWeight: 900,
-            fontSize: size * 0.12,
-            color: '#fff',
-            letterSpacing: '-0.02em',
-          }}>{year}</span>
-        ) : (
-          <span style={{ fontSize: size * 0.14, color: 'rgba(255,255,255,0.8)' }}>♪</span>
-        )}
-        <div style={{
-          position: 'absolute',
-          width: size * 0.06, height: size * 0.06,
-          borderRadius: '50%',
-          background: 'var(--bg)',
-        }} />
-      </div>
     </div>
   )
 }
