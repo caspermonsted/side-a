@@ -5,7 +5,9 @@ async function apiFetch(path) {
   const res = await fetch(`https://api.spotify.com/v1${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
-  return res.json()
+  const data = await res.json()
+  if (data.error) throw new Error(`Spotify API: ${data.error.message} (${data.error.status})`)
+  return data
 }
 
 const DECADE_RANGES = {
@@ -36,20 +38,16 @@ export async function fetchTracks({ decades, difficulty, genre, count = 60 }) {
 
     const offsets = [0, 50]
     for (const offset of offsets) {
-      try {
-        const data = await apiFetch(
-          `/search?q=${encodeURIComponent(q)}&type=track&limit=50&offset=${offset}`
+      const data = await apiFetch(
+        `/search?q=${encodeURIComponent(q)}&type=track&limit=50&offset=${offset}`
+      )
+      if (data.tracks?.items) {
+        const filtered = data.tracks.items.filter(t =>
+          t.popularity >= min &&
+          t.popularity <= max &&
+          t.album?.release_date
         )
-        if (data.tracks?.items) {
-          const filtered = data.tracks.items.filter(t =>
-            t.popularity >= min &&
-            t.popularity <= max &&
-            t.album?.release_date
-          )
-          all.push(...filtered)
-        }
-      } catch {
-        // continue if one request fails
+        all.push(...filtered)
       }
     }
   }
