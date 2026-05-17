@@ -1,11 +1,20 @@
 import { getToken } from './auth'
 
-async function apiFetch(path) {
+async function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms))
+}
+
+async function apiFetch(path, retry = 0) {
   const token = await getToken()
   const res = await fetch(`https://api.spotify.com/v1${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   if (res.status === 204) return {}
+  if (res.status === 429 && retry < 3) {
+    const wait = parseInt(res.headers.get('Retry-After') || '2') * 1000
+    await sleep(wait)
+    return apiFetch(path, retry + 1)
+  }
   const text = await res.text()
   if (!res.ok) throw new Error(`Spotify fejl (${res.status})`)
   return JSON.parse(text)
@@ -36,6 +45,7 @@ export async function fetchTracks({ decades, difficulty, genre, count = 60 }) {
     let q = `year:${from}-${to}`
     if (genre && genre !== 'all') q += `+genre:${genre}`
 
+    await sleep(300)
     const url = `/search?q=${q}&type=track&limit=10`
     const data = await apiFetch(url)
     if (data.tracks?.items) {
