@@ -18,8 +18,8 @@ const TEAM_COLORS = ['#c4533a', '#3a5d4a', '#d4a13a', '#5a4a8a', '#2a4a7a', '#a8
 
 export default function Setup({ onStart, onLogout }) {
   const [teams, setTeams] = useState([
-    { name: 'Team 1', color: TEAM_COLORS[0] },
-    { name: 'Team 2', color: TEAM_COLORS[1] },
+    { name: 'Team 1' },
+    { name: 'Team 2' },
   ])
   const [decades, setDecades] = useState(['80s', '90s', '00s', '10s'])
   const [difficulty, setDifficulty] = useState('medium')
@@ -37,16 +37,12 @@ export default function Setup({ onStart, onLogout }) {
     onStart({
       team1: teams[0].name.trim(),
       team2: teams[1].name.trim(),
-      teamColors: teams.map(t => t.color),
       decades, difficulty, genre, rounds,
     })
   }
 
   function setTeamName(i, val) {
     setTeams(prev => prev.map((t, j) => j === i ? { ...t, name: val } : t))
-  }
-  function setTeamColor(i, color) {
-    setTeams(prev => prev.map((t, j) => j === i ? { ...t, color } : t))
   }
 
   return (
@@ -126,32 +122,20 @@ export default function Setup({ onStart, onLogout }) {
             }}>
               <div style={{
                 width: 40, height: 40, borderRadius: '50%',
-                background: t.color,
+                background: TEAM_COLORS[i],
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontFamily: "'Playfair Display', serif", fontStyle: 'italic',
                 fontWeight: 800, fontSize: '1.2rem', color: '#fff', flexShrink: 0,
               }}>
                 {t.name.charAt(0).toUpperCase()}
               </div>
-              <div>
-                <input
-                  type="text"
-                  value={t.name}
-                  onChange={e => setTeamName(i, e.target.value)}
-                  maxLength={20}
-                  style={{ fontSize: '1.1rem', padding: '0' }}
-                />
-                <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.25rem' }}>
-                  {TEAM_COLORS.map(c => (
-                    <button key={c} onClick={() => setTeamColor(i, c)} style={{
-                      width: 12, height: 12, borderRadius: '50%', background: c,
-                      padding: 0, border: 'none', cursor: 'pointer',
-                      outline: t.color === c ? '1.5px solid var(--ink)' : 'none',
-                      outlineOffset: 2,
-                    }} />
-                  ))}
-                </div>
-              </div>
+              <input
+                type="text"
+                value={t.name}
+                onChange={e => setTeamName(i, e.target.value)}
+                maxLength={20}
+                style={{ fontSize: '1.1rem', padding: '0' }}
+              />
               <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.62rem', color: 'var(--muted)' }}>
                 {String(i + 1).padStart(2, '0')}
               </span>
