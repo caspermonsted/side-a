@@ -10,10 +10,8 @@ async function apiFetch(path, retry = 0) {
     headers: { Authorization: `Bearer ${token}` },
   })
   if (res.status === 204) return {}
-  if (res.status === 429 && retry < 5) {
-    const wait = parseInt(res.headers.get('Retry-After') || '10') * 1000
-    await sleep(wait)
-    return apiFetch(path, retry + 1)
+  if (res.status === 429) {
+    throw new Error('Spotify er midlertidigt overbelastet. Vent 1-2 minutter og prøv igen.')
   }
   const text = await res.text()
   if (!res.ok) throw new Error(`Spotify fejl (${res.status})`)
