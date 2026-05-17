@@ -34,11 +34,12 @@ export async function fetchTracks({ decades, difficulty, genre, count = 60 }) {
 
   for (const decade of decades) {
     const [from, to] = DECADE_RANGES[decade]
-    let q = `year:${from}-${to}`
+    const midYear = Math.floor((from + to) / 2)
+    let q = `year:${midYear}`
     if (genre && genre !== 'all') q += ` genre:${genre}`
 
     const url = `/search?q=${encodeURIComponent(q)}&type=track&limit=20`
-    debugLines.push(`${decade}: GET ${url}`)
+    debugLines.push(`${decade}: q="${q}"`)
 
     const data = await apiFetch(url)
     const total = data.tracks?.items?.length ?? 0
