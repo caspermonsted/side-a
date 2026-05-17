@@ -218,16 +218,29 @@ export default function Game({ settings, onQuit }) {
           gap: '1rem',
           alignItems: 'center',
         }}>
-          {currentTrack.albumArt && (
+          {phase === PHASE.REVEALING && currentTrack.albumArt && (
             <img src={currentTrack.albumArt} alt="" style={{ width: 64, height: 64, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
           )}
+          {phase !== PHASE.REVEALING && (
+            <div style={{ width: 64, height: 64, borderRadius: 8, background: 'var(--card)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', flexShrink: 0 }}>
+              🎵
+            </div>
+          )}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 900, fontSize: '1.1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {currentTrack.title}
-            </div>
-            <div style={{ color: 'var(--muted)', fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {currentTrack.artist}
-            </div>
+            {phase === PHASE.REVEALING ? (
+              <>
+                <div style={{ fontWeight: 900, fontSize: '1.1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {currentTrack.title}
+                </div>
+                <div style={{ color: 'var(--muted)', fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {currentTrack.artist}
+                </div>
+              </>
+            ) : (
+              <div style={{ color: 'var(--muted)', fontSize: '0.95rem' }}>
+                Hør sangen og placer den på tidslinjen
+              </div>
+            )}
             {phase === PHASE.REVEALING && (
               <div style={{ marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span style={{ fontWeight: 900, fontSize: '1.1rem', color: 'var(--accent2)' }}>
