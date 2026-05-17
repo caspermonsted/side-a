@@ -18,8 +18,8 @@ const TEAM_COLORS = ['#c4533a', '#3a5d4a', '#d4a13a', '#5a4a8a', '#2a4a7a', '#a8
 
 export default function Setup({ onStart, onLogout }) {
   const [teams, setTeams] = useState([
-    { name: 'Hold 1', color: TEAM_COLORS[0] },
-    { name: 'Hold 2', color: TEAM_COLORS[1] },
+    { name: 'Team 1', color: TEAM_COLORS[0] },
+    { name: 'Team 2', color: TEAM_COLORS[1] },
   ])
   const [decades, setDecades] = useState(['80s', '90s', '00s', '10s'])
   const [difficulty, setDifficulty] = useState('medium')
