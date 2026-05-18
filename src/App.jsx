@@ -18,7 +18,7 @@ export default function App() {
   }
 
   function handleStart(settings) {
-    setGameSettings(prev => ({ ...(prev || {}), ...settings }))
+    setGameSettings(settings)
     setPage('game')
   }
 

@@ -57,7 +57,7 @@ export function initPlayer() {
 export async function playSong(uri, previewUrl) {
   if (isMobile) {
     // Always use preview URL on mobile — tracks without one are filtered out at fetch time
-    if (!previewUrl) throw new Error('No preview available for this track.')
+    if (!previewUrl) throw new Error('No preview available — this track slipped through the filter. Please restart the game.')
     const audio = getAudio()
     audio.src = previewUrl
     await audio.play()
