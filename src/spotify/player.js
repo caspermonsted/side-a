@@ -16,9 +16,15 @@ export async function initPlayer() {
     const data = await res.json()
     const device = data.devices?.find(d => d.is_active) ?? data.devices?.[0]
     if (!device) {
-      throw new Error('Open the Spotify app on your phone first, then start the game.')
+      throw new Error('Open Spotify on your phone, play any song briefly, then come back and start the game.')
     }
     deviceId = device.id
+    // Transfer playback to this device so its audio session is active
+    await fetch('https://api.spotify.com/v1/me/player', {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ device_ids: [deviceId], play: false }),
+    })
     return
   }
 
@@ -55,11 +61,17 @@ export async function initPlayer() {
 export async function playSong(uri, _previewUrl, resume = false) {
   const id = isMobile ? deviceId : await deviceReady
   const token = await getToken()
-  await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${id}`, {
+  const res = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${id}`, {
     method: 'PUT',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: resume ? undefined : JSON.stringify({ uris: [uri] }),
   })
+  if (!res.ok && res.status !== 204) {
+    const text = await res.text()
+    let msg = `Playback failed (${res.status})`
+    try { const j = JSON.parse(text); if (j.error?.message) msg += ': ' + j.error.message } catch (_) {}
+    throw new Error(msg)
+  }
 }
 
 export async function pauseSong() {
