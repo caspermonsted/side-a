@@ -18,19 +18,6 @@ function getAudio() {
   return audioEl
 }
 
-// Cache iTunes lookups so we don't re-fetch the same track twice
-const itunesCache = new Map()
-
-async function getItunesPreview(trackId, title, artist) {
-  if (itunesCache.has(trackId)) return itunesCache.get(trackId)
-  const q = encodeURIComponent(`${artist} ${title}`)
-  const res = await fetch(`https://itunes.apple.com/search?term=${q}&media=music&limit=10`)
-  const data = await res.json()
-  // Pick the first result that actually has a preview URL
-  const url = data.results?.find(r => r.previewUrl)?.previewUrl ?? null
-  itunesCache.set(trackId, url)
-  return url
-}
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
@@ -110,12 +97,8 @@ export async function playSong(uri, previewUrl, resume = false) {
 
 export async function playSongMobile(track) {
   const audio = getAudio()
-  let url = track.previewUrl
-  if (!url) {
-    url = await getItunesPreview(track.id, track.title, track.artist)
-  }
-  if (!url) throw new Error(`No preview found for "${track.title}" — skipping. Tap Play for the next song.`)
-  audio.src = url
+  if (!track.previewUrl) throw new Error('NO_PREVIEW')
+  audio.src = track.previewUrl
   await audio.play()
 }
 

@@ -1,10 +1,6 @@
 import { getToken } from './auth'
 
-async function sleep(ms) {
-  return new Promise(r => setTimeout(r, ms))
-}
-
-async function apiFetch(path, retry = 0) {
+async function apiFetch(path) {
   const token = await getToken()
   const res = await fetch(`https://api.spotify.com/v1${path}`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -24,6 +20,17 @@ async function apiFetch(path, retry = 0) {
   return JSON.parse(text)
 }
 
+async function itunesPreview(title, artist) {
+  try {
+    const q = encodeURIComponent(`${artist} ${title}`)
+    const res = await fetch(`https://itunes.apple.com/search?term=${q}&media=music&limit=10`)
+    const data = await res.json()
+    return data.results?.find(r => r.previewUrl)?.previewUrl ?? null
+  } catch {
+    return null
+  }
+}
+
 const DECADE_RANGES = {
   '60s': [1960, 1969],
   '70s': [1970, 1979],
@@ -40,14 +47,13 @@ const POPULARITY = {
   hard:   { min: 0  },
 }
 
-// Bias the random offset toward popular (low offset) or obscure (high offset)
 const OFFSET_RANGE = {
   easy:   { min: 0,   max: 100 },
   medium: { min: 50,  max: 300 },
   hard:   { min: 200, max: 700 },
 }
 
-export async function fetchTracks({ decades, difficulty, genre, count = 40, exclude = new Set() }) {
+export async function fetchTracks({ decades, difficulty, genre, count = 40, exclude = new Set(), enrichPreviews = false }) {
   const { min: popMin } = POPULARITY[difficulty]
   const { min: offsetMin, max: offsetMax } = OFFSET_RANGE[difficulty]
   const all = []
@@ -93,7 +99,7 @@ export async function fetchTracks({ decades, difficulty, genre, count = 40, excl
 
   shuffle(unique)
 
-  return unique.slice(0, count).map(t => ({
+  let candidates = unique.slice(0, count).map(t => ({
     id: t.id,
     uri: t.uri,
     previewUrl: t.preview_url || null,
@@ -102,6 +108,21 @@ export async function fetchTracks({ decades, difficulty, genre, count = 40, excl
     year: parseInt(t.album.release_date.slice(0, 4)),
     albumArt: t.album.images[1]?.url || t.album.images[0]?.url || null,
   }))
+
+  if (enrichPreviews) {
+    // For tracks without a Spotify preview URL, look up iTunes in parallel
+    await Promise.all(
+      candidates
+        .filter(t => !t.previewUrl)
+        .map(async t => {
+          t.previewUrl = await itunesPreview(t.title, t.artist)
+        })
+    )
+    // Drop tracks with no preview from either source
+    candidates = candidates.filter(t => t.previewUrl)
+  }
+
+  return candidates
 }
 
 function shuffle(arr) {

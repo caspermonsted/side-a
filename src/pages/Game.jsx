@@ -115,7 +115,7 @@ export default function Game({ settings, onQuit }) {
     const remaining = tracks.length - trackIdx
     if (remaining > 15 || tracks.length === 0) return
     fetchingMore.current = true
-    fetchTracks({ ...settings, count: 30, exclude: seenIds.current })
+    fetchTracks({ ...settings, count: 30, exclude: seenIds.current, enrichPreviews: isMobile })
       .then(more => {
         if (more.length > 0) {
           more.forEach(t => seenIds.current.add(t.id))
@@ -134,7 +134,7 @@ export default function Game({ settings, onQuit }) {
           t = shuffled(DEMO_TRACKS)
         } else {
           await initPlayer()
-          t = await fetchTracks({ ...settings })
+          t = await fetchTracks({ ...settings, enrichPreviews: isMobile })
           if (t.length === 0) throw new Error('No songs found. Try selecting more decades.')
           t.forEach(track => seenIds.current.add(track.id))
         }
