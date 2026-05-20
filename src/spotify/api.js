@@ -47,10 +47,13 @@ const OFFSET_RANGE = {
   hard:   { min: 200, max: 700 },
 }
 
-export async function fetchTracks({ decades, difficulty, genre, count = 60 }) {
+export async function fetchTracks({ decades, difficulty, genre, count = 100 }) {
   const { min: popMin } = POPULARITY[difficulty]
   const { min: offsetMin, max: offsetMax } = OFFSET_RANGE[difficulty]
   const all = []
+
+  // How many tracks to aim for per decade, with a buffer for popularity filtering
+  const perDecadeTarget = Math.ceil((count * 1.5) / decades.length)
 
   for (const decade of decades) {
     const [from, to] = DECADE_RANGES[decade]
@@ -60,7 +63,7 @@ export async function fetchTracks({ decades, difficulty, genre, count = 60 }) {
     const startOffset = offsetMin + Math.floor(Math.random() * (offsetMax - offsetMin))
     const decadeTracks = []
 
-    for (let page = 0; page < 3 && decadeTracks.length < 20; page++) {
+    for (let page = 0; page < 5 && decadeTracks.length < perDecadeTarget; page++) {
       const offset = startOffset + page * 20
       if (offset > 980) break
       const url = `/search?q=${encodeURIComponent(q)}&type=track&offset=${offset}`
