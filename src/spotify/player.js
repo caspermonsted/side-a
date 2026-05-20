@@ -23,16 +23,13 @@ const itunesCache = new Map()
 
 async function getItunesPreview(trackId, title, artist) {
   if (itunesCache.has(trackId)) return itunesCache.get(trackId)
-  try {
-    const q = encodeURIComponent(`${artist} ${title}`)
-    const res = await fetch(`https://itunes.apple.com/search?term=${q}&media=music&limit=5`)
-    const data = await res.json()
-    const url = data.results?.[0]?.previewUrl ?? null
-    itunesCache.set(trackId, url)
-    return url
-  } catch {
-    return null
-  }
+  const q = encodeURIComponent(`${artist} ${title}`)
+  const res = await fetch(`https://itunes.apple.com/search?term=${q}&media=music&limit=10`)
+  const data = await res.json()
+  // Pick the first result that actually has a preview URL
+  const url = data.results?.find(r => r.previewUrl)?.previewUrl ?? null
+  itunesCache.set(trackId, url)
+  return url
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
@@ -117,7 +114,7 @@ export async function playSongMobile(track) {
   if (!url) {
     url = await getItunesPreview(track.id, track.title, track.artist)
   }
-  if (!url) throw new Error(`No preview found for "${track.title}".`)
+  if (!url) throw new Error(`No preview found for "${track.title}" — skipping. Tap Play for the next song.`)
   audio.src = url
   await audio.play()
 }

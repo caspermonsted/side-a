@@ -167,7 +167,12 @@ export default function Game({ settings, onQuit }) {
       setPlaying(true)
       setProgress(0)
     } catch (e) {
-      setError(e.message)
+      if (isMobile && e.message.includes('No preview')) {
+        // Skip this track silently and move to the next one
+        setTrackIdx(t => t + 1)
+      } else {
+        setError(e.message)
+      }
     }
   }
 
