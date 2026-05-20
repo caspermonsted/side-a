@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { fetchTracks } from '../spotify/api'
 import { initPlayer, playSong, playSongMobile, pauseSong, resumeSongMobile, isMobile } from '../spotify/player'
+import { log } from '../log'
 
 const DEMO_TRACKS = [
   { uri: 'd1', title: 'Bohemian Rhapsody', artist: 'Queen', year: 1975, albumArt: null },
@@ -137,6 +138,13 @@ export default function Game({ settings, onQuit }) {
           t = await fetchTracks({ ...settings, enrichPreviews: isMobile })
           if (t.length === 0) throw new Error('No songs found. Try selecting more decades.')
           t.forEach(track => seenIds.current.add(track.id))
+          log('game_start', {
+            platform: isMobile ? 'ios' : 'desktop',
+            decades: settings.decades,
+            difficulty: settings.difficulty,
+            genre: settings.genre,
+            tracks_loaded: t.length,
+          })
         }
         setTracks(t)
         const a1 = randomAnchorYear(settings.decades)
@@ -148,6 +156,7 @@ export default function Game({ settings, onQuit }) {
         ])
         setPhase(PHASE.READY)
       } catch (e) {
+        log('error', { platform: isMobile ? 'ios' : 'desktop', message: e.message, phase: 'init' })
         setError(e.message)
       }
     }
@@ -249,6 +258,12 @@ export default function Game({ settings, onQuit }) {
     const newScore = isCorrect ? teams[teamIdx].score + 1 : teams[teamIdx].score
     const gameOver = newScore >= TARGET || teams[1 - teamIdx].score >= TARGET || trackIdx + 1 >= tracks.length
     if (gameOver) {
+      log('game_end', {
+        platform: isMobile ? 'ios' : 'desktop',
+        rounds: trackIdx + 1,
+        scores: teams.map(t => ({ name: t.name, score: t.score })),
+        winner: teams[0].score > teams[1].score ? teams[0].name : teams[1].score > teams[0].score ? teams[1].name : 'draw',
+      })
       setPhase(PHASE.DONE)
     } else {
       setRoundCount(r => r + 1)

@@ -1,4 +1,5 @@
 import { getToken } from './auth'
+import { log } from '../log'
 
 async function apiFetch(path) {
   const token = await getToken()
@@ -111,19 +112,25 @@ export async function fetchTracks({ decades, difficulty, genre, count = 40, excl
 
   if (enrichPreviews) {
     const withSpotify = candidates.filter(t => t.previewUrl).length
-    console.log(`[fetchTracks] ${candidates.length} candidates, ${withSpotify} have Spotify preview, checking iTunes for ${candidates.length - withSpotify}...`)
+    const needsItunes = candidates.length - withSpotify
 
     await Promise.all(
       candidates
         .filter(t => !t.previewUrl)
-        .map(async t => {
-          t.previewUrl = await itunesPreview(t.title, t.artist)
-          console.log(`[iTunes] "${t.title}" → ${t.previewUrl ? '✓' : '✗'}`)
-        })
+        .map(async t => { t.previewUrl = await itunesPreview(t.title, t.artist) })
     )
 
+    const withItunes = candidates.filter(t => t.previewUrl).length - withSpotify
     candidates = candidates.filter(t => t.previewUrl)
-    console.log(`[fetchTracks] ${candidates.length} playable tracks after preview filter`)
+
+    log('track_fetch', {
+      platform: 'ios',
+      total: candidates.length,
+      spotify_previews: withSpotify,
+      itunes_lookups: needsItunes,
+      itunes_found: withItunes,
+      dropped: needsItunes - withItunes,
+    })
   }
 
   return candidates
