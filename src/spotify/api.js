@@ -21,20 +21,14 @@ async function apiFetch(path) {
   return JSON.parse(text)
 }
 
-async function itunesPreview(title, artist) {
+async function deezerPreview(title, artist) {
   try {
     const q = encodeURIComponent(`${artist} ${title}`)
-    const res = await fetch(`https://itunes.apple.com/search?term=${q}&media=music&limit=10`)
-    if (!res.ok) {
-      console.warn(`[iTunes] HTTP ${res.status} for "${title}" by ${artist}`)
-      return null
-    }
+    const res = await fetch(`https://api.deezer.com/search?q=${q}&limit=5`)
+    if (!res.ok) return null
     const data = await res.json()
-    const found = data.results?.find(r => r.previewUrl)?.previewUrl ?? null
-    console.log(`[iTunes] "${title}" by ${artist} → ${found ? 'FOUND' : 'not found'} (${data.results?.length ?? 0} results)`)
-    return found
-  } catch (e) {
-    console.warn(`[iTunes] FAILED for "${title}" by ${artist}:`, e.message)
+    return data.data?.find(r => r.preview)?.preview ?? null
+  } catch {
     return null
   }
 }
@@ -124,7 +118,7 @@ export async function fetchTracks({ decades, difficulty, genre, count = 40, excl
     await Promise.all(
       candidates
         .filter(t => !t.previewUrl)
-        .map(async t => { t.previewUrl = await itunesPreview(t.title, t.artist) })
+        .map(async t => { t.previewUrl = await deezerPreview(t.title, t.artist) })
     )
 
     const withItunes = candidates.filter(t => t.previewUrl).length - withSpotify
@@ -134,7 +128,7 @@ export async function fetchTracks({ decades, difficulty, genre, count = 40, excl
       throw new Error(
         `No playable songs found.\n` +
         `Spotify previews: ${withSpotify}\n` +
-        `iTunes looked up: ${needsItunes}, found: ${withItunes}`
+        `Deezer looked up: ${needsItunes}, found: ${withItunes}`
       )
     }
 
