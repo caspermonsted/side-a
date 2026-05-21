@@ -1,24 +1,25 @@
 import express from 'express'
-import { fileURLToPath } from 'url'
-import { dirname, join } from 'path'
+import { join } from 'path'
 
 const app = express()
-const PORT = process.env.PORT || 3000
-const __dirname = dirname(fileURLToPath(import.meta.url))
+const DIST = join(process.cwd(), 'dist')
 
-app.use(express.json())
-app.use(express.static(join(__dirname, 'dist')))
+app.use(express.static(DIST))
 
-app.post('/api/log', (req, res) => {
-  const { event, ...data } = req.body ?? {}
-  if (!event) return res.sendStatus(400)
-  console.log(JSON.stringify({ ts: new Date().toISOString(), event, ...data }))
-  res.sendStatus(204)
+app.get('/api/preview', async (req, res) => {
+  const { title, artist } = req.query
+  if (!title || !artist) return res.json({ url: null })
+  try {
+    const q = encodeURIComponent(`${artist} ${title}`)
+    const r = await fetch(`https://api.deezer.com/search?q=${q}&limit=5`)
+    const data = await r.json()
+    const url = data.data?.find(d => d.preview)?.preview ?? null
+    res.json({ url })
+  } catch {
+    res.json({ url: null })
+  }
 })
 
-// SPA fallback
-app.get('*', (_req, res) => {
-  res.sendFile(join(__dirname, 'dist', 'index.html'))
-})
+app.use((_req, res) => res.sendFile(join(DIST, 'index.html')))
 
-app.listen(PORT, () => console.log(`Side A running on port ${PORT}`))
+app.listen(3000, () => console.log('Side A on :3000'))

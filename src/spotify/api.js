@@ -23,11 +23,9 @@ async function apiFetch(path) {
 
 async function deezerPreview(title, artist) {
   try {
-    const q = encodeURIComponent(`${artist} ${title}`)
-    const res = await fetch(`https://api.deezer.com/search?q=${q}&limit=5`)
-    if (!res.ok) return null
+    const res = await fetch(`/api/preview?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`)
     const data = await res.json()
-    return data.data?.find(r => r.preview)?.preview ?? null
+    return data.url ?? null
   } catch {
     return null
   }
