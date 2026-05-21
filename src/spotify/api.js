@@ -130,6 +130,14 @@ export async function fetchTracks({ decades, difficulty, genre, count = 40, excl
     const withItunes = candidates.filter(t => t.previewUrl).length - withSpotify
     candidates = candidates.filter(t => t.previewUrl)
 
+    if (candidates.length === 0) {
+      throw new Error(
+        `No playable songs found.\n` +
+        `Spotify previews: ${withSpotify}\n` +
+        `iTunes looked up: ${needsItunes}, found: ${withItunes}`
+      )
+    }
+
     log('track_fetch', {
       platform: 'ios',
       total: candidates.length,
