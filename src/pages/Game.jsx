@@ -429,8 +429,9 @@ export default function Game({ settings, onQuit }) {
 
   // ─── Done ────────────────────────────────────────────────────
   if (phase === PHASE.DONE) {
-    const winner = teams[0].score > teams[1].score ? teams[0]
-      : teams[1].score > teams[0].score ? teams[1] : null
+    const topScore = Math.max(...teams.map(t => t.score))
+    const topTeams = teams.filter(t => t.score === topScore)
+    const winner = topTeams.length === 1 ? topTeams[0] : null
     const winnerCards = winner ? winner.timeline.filter(c => !c.isAnchor) : []
 
     return (
@@ -454,7 +455,7 @@ export default function Game({ settings, onQuit }) {
                 fontSize: 'clamp(3rem, 14vw, 4.5rem)', lineHeight: 0.86,
                 letterSpacing: '-0.04em', color: winner ? winner.color : 'var(--ink)',
               }}>{winner ? winner.name : 'Draw'}</div>
-              {winner && <div style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: '1rem', color: 'var(--ink2)', marginTop: '0.3rem' }}>has won {TARGET} cards!</div>}
+              {winner && <div style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: '1rem', color: 'var(--ink2)', marginTop: '0.3rem' }}>{teams.length === 1 ? `finished with ${winner.score} cards!` : `has won ${TARGET} cards!`}</div>}
             </div>
             {winner && (
               <div style={{
