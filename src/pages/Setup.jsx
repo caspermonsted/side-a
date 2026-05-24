@@ -24,7 +24,7 @@ export default function Setup({ onStart, onLogout }) {
   const [decades, setDecades] = useState(['80s', '90s', '00s', '10s'])
   const [difficulty, setDifficulty] = useState('medium')
   const [genre, setGenre] = useState('all')
-  const rounds = 10
+  const [target, setTarget] = useState(10)
 
   function toggleDecade(d) {
     setDecades(prev =>
@@ -36,7 +36,7 @@ export default function Setup({ onStart, onLogout }) {
     if (teams.some(t => !t.name.trim()) || decades.length === 0) return
     onStart({
       teams: teams.map((t, i) => ({ name: t.name.trim(), color: TEAM_COLORS[i] })),
-      decades, difficulty, genre, rounds,
+      decades, difficulty, genre, target,
     })
   }
 
@@ -261,6 +261,34 @@ export default function Setup({ onStart, onLogout }) {
                   fontSize: '0.95rem',
                 }}
               >{g.label}</button>
+            )
+          })}
+        </div>
+      </SectionBlock>
+
+      {/* A5 — Cards to win */}
+      <SectionBlock number="A5" title="Cards to win" sub="First to this wins">
+        <div style={{ display: 'flex', gap: '0.4rem' }}>
+          {[3, 5, 10].map(n => {
+            const active = target === n
+            return (
+              <button
+                key={n}
+                onClick={() => setTarget(n)}
+                style={{
+                  flex: 1, padding: '0.75rem',
+                  border: `1px solid ${active ? 'var(--ink)' : 'var(--border)'}`,
+                  background: active ? 'var(--ink)' : 'transparent',
+                  color: active ? 'var(--bg)' : 'var(--ink)',
+                  cursor: 'pointer',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.15rem',
+                }}
+              >
+                <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontWeight: 900, fontSize: '1.8rem', lineHeight: 1 }}>{n}</span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.52rem', opacity: 0.6 }}>
+                  {n === 3 ? 'QUICK' : n === 5 ? 'MEDIUM' : 'FULL'}
+                </span>
+              </button>
             )
           })}
         </div>

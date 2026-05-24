@@ -255,7 +255,7 @@ export default function Game({ settings, onQuit }) {
     setPhase(PHASE.JUDGED)
   }
 
-  const TARGET = 10
+  const TARGET = settings.target ?? 10
 
   function handleNext() {
     const newScore = isCorrect ? teams[teamIdx].score + 1 : teams[teamIdx].score
@@ -377,7 +377,7 @@ export default function Game({ settings, onQuit }) {
               }}>
                 <div style={{ width: 7, height: 7, borderRadius: '50%', background: i === teamIdx ? 'var(--bg)' : t.color, flexShrink: 0 }} />
                 <span className="mono" style={{ fontSize: '0.62rem' }}>{t.name}</span>
-                <span style={{ fontFamily: "'Playfair Display', serif", fontWeight: 800, fontSize: '0.95rem' }}>{t.score}<span style={{ opacity: 0.4, fontSize: '0.65rem' }}>/10</span></span>
+                <span style={{ fontFamily: "'Playfair Display', serif", fontWeight: 800, fontSize: '0.95rem' }}>{t.score}<span style={{ opacity: 0.4, fontSize: '0.65rem' }}>{`/${TARGET}`}</span></span>
               </div>
             ))}
           </div>
@@ -425,7 +425,7 @@ export default function Game({ settings, onQuit }) {
                 fontSize: 'clamp(3rem, 14vw, 4.5rem)', lineHeight: 0.86,
                 letterSpacing: '-0.04em', color: winner ? winner.color : 'var(--ink)',
               }}>{winner ? winner.name : 'Draw'}</div>
-              {winner && <div style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: '1rem', color: 'var(--ink2)', marginTop: '0.3rem' }}>has won 10 cards!</div>}
+              {winner && <div style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: '1rem', color: 'var(--ink2)', marginTop: '0.3rem' }}>has won {TARGET} cards!</div>}
             </div>
             {winner && (
               <div style={{
@@ -456,7 +456,7 @@ export default function Game({ settings, onQuit }) {
                 <span className="mono" style={{ fontSize: '0.55rem', opacity: 0.5 }}>0{i + 1}</span>
                 <div style={{ width: 7, height: 7, borderRadius: '50%', background: i === 0 && winner ? 'var(--bg)' : t.color, flexShrink: 0 }} />
                 <span style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: '0.85rem', flex: 1 }}>{t.name}</span>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: '0.9rem' }}>{t.score}<span style={{ opacity: 0.4, fontSize: '0.65rem' }}>/10</span></span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: '0.9rem' }}>{t.score}<span style={{ opacity: 0.4, fontSize: '0.65rem' }}>{`/${TARGET}`}</span></span>
               </div>
             ))}
           </div>
@@ -551,7 +551,7 @@ export default function Game({ settings, onQuit }) {
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: t.color, flexShrink: 0 }} />
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.72rem', flex: 1 }}>{t.name}</span>
             <span style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: '0.95rem' }}>
-              {t.score}<span style={{ opacity: 0.35, fontSize: '0.7rem' }}>/10</span>
+              {t.score}<span style={{ opacity: 0.35, fontSize: '0.7rem' }}>{`/${TARGET}`}</span>
             </span>
           </div>
         ))}
