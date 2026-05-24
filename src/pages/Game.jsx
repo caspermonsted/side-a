@@ -76,8 +76,8 @@ export default function Game({ settings, onQuit }) {
   const [trackIdx, setTrackIdx] = useState(0)
   const [teamIdx, setTeamIdx] = useState(0)
   const [teams, setTeams] = useState(() =>
-    [settings.team1, settings.team2].map((name, i) => ({
-      name, color: TEAM_COLORS[i], timeline: [], score: 0,
+    settings.teams.map((t, i) => ({
+      name: t.name, color: TEAM_COLORS[i], timeline: [], score: 0,
     }))
   )
   const [placedSlot, setPlacedSlot] = useState(null)
@@ -147,13 +147,16 @@ export default function Game({ settings, onQuit }) {
           })
         }
         setTracks(t)
-        const a1 = randomAnchorYear(settings.decades)
-        let a2 = randomAnchorYear(settings.decades)
-        while (a2 === a1) a2 = randomAnchorYear(settings.decades)
-        setTeams([
-          { name: settings.team1, color: TEAM_COLORS[0], timeline: [{ year: a1, isAnchor: true }], score: 0 },
-          { name: settings.team2, color: TEAM_COLORS[1], timeline: [{ year: a2, isAnchor: true }], score: 0 },
-        ])
+        const anchorYears = []
+        while (anchorYears.length < settings.teams.length) {
+          const y = randomAnchorYear(settings.decades)
+          if (!anchorYears.includes(y)) anchorYears.push(y)
+        }
+        setTeams(settings.teams.map((team, i) => ({
+          name: team.name, color: TEAM_COLORS[i],
+          timeline: [{ year: anchorYears[i], isAnchor: true }],
+          score: 0,
+        })))
         setPhase(PHASE.READY)
       } catch (e) {
         log('error', { platform: isMobile ? 'ios' : 'desktop', message: e.message, phase: 'init' })
@@ -256,7 +259,7 @@ export default function Game({ settings, onQuit }) {
 
   function handleNext() {
     const newScore = isCorrect ? teams[teamIdx].score + 1 : teams[teamIdx].score
-    const gameOver = newScore >= TARGET || teams[1 - teamIdx].score >= TARGET || trackIdx + 1 >= tracks.length
+    const gameOver = newScore >= TARGET || teams.some(t => t.score >= TARGET) || trackIdx + 1 >= tracks.length
     if (gameOver) {
       log('game_end', {
         platform: isMobile ? 'ios' : 'desktop',
@@ -274,7 +277,7 @@ export default function Game({ settings, onQuit }) {
   function handleBeginTurn() {
     if (!settings.demo) pauseSong()
     setTrackIdx(t => t + 1)
-    setTeamIdx(t => 1 - t)
+    setTeamIdx(t => (t + 1) % teams.length)
     setPlacedSlot(null)
     setYearCorrect(null)
     setIsCorrect(null)
@@ -332,7 +335,7 @@ export default function Game({ settings, onQuit }) {
 
   // ─── Handoff ─────────────────────────────────────────────────
   if (phase === PHASE.HANDOFF) {
-    const nextTeam = teams[1 - teamIdx]
+    const nextTeam = teams[(teamIdx + 1) % teams.length]
     const prevTeam = teams[teamIdx]
     return (
       <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg)', maxWidth: 480, margin: '0 auto' }}>
@@ -755,7 +758,7 @@ export default function Game({ settings, onQuit }) {
               <div className="mono" style={{ fontSize: '0.6rem', color: 'rgba(196,200,180,0.7)', marginBottom: 2 }}>
                 {isCorrect ? '+1 CARD' : 'NO CARD'}
               </div>
-              <span>Next — {teams[1 - teamIdx].name}'s turn</span>
+              <span>Next — {teams[(teamIdx + 1) % teams.length].name}'s turn</span>
             </div>
             <span>→</span>
           </button>

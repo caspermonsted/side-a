@@ -34,7 +34,7 @@ export default function App() {
 
   function handleDemo() {
     setPage('setup')
-    setGameSettings({ demo: true })
+    setGameSettings({ demo: true, teams: [{ name: 'Team 1' }, { name: 'Team 2' }], decades: ['80s', '90s', '00s', '10s'] })
   }
 
   if (page === 'callback') return <Callback onDone={handleLoggedIn} />

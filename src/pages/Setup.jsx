@@ -33,12 +33,21 @@ export default function Setup({ onStart, onLogout }) {
   }
 
   function handleStart() {
-    if (!teams[0].name.trim() || !teams[1].name.trim() || decades.length === 0) return
+    if (teams.some(t => !t.name.trim()) || decades.length === 0) return
     onStart({
-      team1: teams[0].name.trim(),
-      team2: teams[1].name.trim(),
+      teams: teams.map((t, i) => ({ name: t.name.trim(), color: TEAM_COLORS[i] })),
       decades, difficulty, genre, rounds,
     })
+  }
+
+  function addTeam() {
+    if (teams.length >= 4) return
+    setTeams(prev => [...prev, { name: `Team ${prev.length + 1}` }])
+  }
+
+  function removeTeam() {
+    if (teams.length <= 1) return
+    setTeams(prev => prev.slice(0, -1))
   }
 
   function setTeamName(i, val) {
@@ -111,7 +120,7 @@ export default function Setup({ onStart, onLogout }) {
       </div>
 
       {/* A1 — Optrædende */}
-      <SectionBlock number="A1" title="Players" sub={`${teams.length} teams`}>
+      <SectionBlock number="A1" title="Players" sub={`${teams.length} team${teams.length > 1 ? 's' : ''}`}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           {teams.map((t, i) => (
             <div key={i} style={{
@@ -141,6 +150,30 @@ export default function Setup({ onStart, onLogout }) {
               </span>
             </div>
           ))}
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+            <button
+              onClick={removeTeam}
+              disabled={teams.length <= 1}
+              style={{
+                flex: 1, padding: '0.6rem',
+                border: '1px solid var(--border)', background: 'transparent',
+                cursor: teams.length <= 1 ? 'default' : 'pointer',
+                opacity: teams.length <= 1 ? 0.3 : 1,
+                fontFamily: "'JetBrains Mono', monospace", fontSize: '0.65rem', letterSpacing: '0.1em',
+              }}
+            >− Remove team</button>
+            <button
+              onClick={addTeam}
+              disabled={teams.length >= 4}
+              style={{
+                flex: 1, padding: '0.6rem',
+                border: '1px solid var(--border)', background: 'transparent',
+                cursor: teams.length >= 4 ? 'default' : 'pointer',
+                opacity: teams.length >= 4 ? 0.3 : 1,
+                fontFamily: "'JetBrains Mono', monospace", fontSize: '0.65rem', letterSpacing: '0.1em',
+              }}
+            >+ Add team</button>
+          </div>
         </div>
       </SectionBlock>
 
@@ -237,7 +270,7 @@ export default function Setup({ onStart, onLogout }) {
       <div style={{ padding: '0.5rem 1.25rem 2rem' }}>
         <button
           onClick={handleStart}
-          disabled={!teams[0].name.trim() || !teams[1].name.trim() || decades.length === 0}
+          disabled={teams.some(t => !t.name.trim()) || decades.length === 0}
           style={{
             width: '100%', border: '1px solid var(--ink)',
             background: 'var(--ink)', color: 'var(--bg)',
