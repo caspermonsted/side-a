@@ -554,33 +554,37 @@ export default function Game({ settings, onQuit }) {
         ))}
       </div>
 
-      {/* Stage: turntable + mystery card */}
-      <div style={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '1.25rem 1rem 0.5rem', position: 'relative' }}>
-        <Vinyl size={140} spinning={spinning} color={team.color} year={revealed ? currentTrack?.year : null} />
+      {/* Stage: song reveal card (when revealed) or turntable (otherwise) */}
+      {revealed ? (
+        <SongRevealCard song={currentTrack} yearCorrect={yearCorrect} judged={phase === PHASE.JUDGED} correct={isCorrect} />
+      ) : (
+        <div style={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '1.25rem 1rem 0.5rem', position: 'relative' }}>
+          <Vinyl size={140} spinning={spinning} color={team.color} year={null} />
 
-        {/* Mystery card — shown during READY and LISTENING (unless dragging) */}
-        {(phase === PHASE.READY || (phase === PHASE.LISTENING && !drag)) && (
-          <MysteryCardEl
-            onPointerDown={onPointerDown}
-            draggable={phase === PHASE.LISTENING}
-          />
-        )}
+          {/* Mystery card — shown during READY and LISTENING (unless dragging) */}
+          {(phase === PHASE.READY || (phase === PHASE.LISTENING && !drag)) && (
+            <MysteryCardEl
+              onPointerDown={onPointerDown}
+              draggable={phase === PHASE.LISTENING}
+            />
+          )}
 
-        {/* Floating ghost during drag */}
-        {drag && (
-          <MysteryCardEl
-            floating
-            style={{
-              position: 'fixed',
-              left: drag.x - drag.offX,
-              top: drag.y - drag.offY,
-              transform: 'translate(-50%, -50%) rotate(-3deg)',
-              zIndex: 1000,
-              pointerEvents: 'none',
-            }}
-          />
-        )}
-      </div>
+          {/* Floating ghost during drag */}
+          {drag && (
+            <MysteryCardEl
+              floating
+              style={{
+                position: 'fixed',
+                left: drag.x - drag.offX,
+                top: drag.y - drag.offY,
+                transform: 'translate(-50%, -50%) rotate(-3deg)',
+                zIndex: 1000,
+                pointerEvents: 'none',
+              }}
+            />
+          )}
+        </div>
+      )}
 
       {/* Playback bar */}
       {phase !== PHASE.READY && phase !== PHASE.REVEALED && phase !== PHASE.JUDGED && (
@@ -623,14 +627,47 @@ export default function Game({ settings, onQuit }) {
           {phase === PHASE.READY && 'Press Play — then drag the card onto the timeline.'}
           {phase === PHASE.LISTENING && 'Listen — then drag the card onto the timeline.'}
           {phase === PHASE.PLACED && 'Card placed. Discuss the title and artist — then reveal the answer.'}
-          {phase === PHASE.REVEALED && (yearCorrect
-            ? <><em>Year correct.</em> Did they also guess the artist & title?</>
-            : <><em>Wrong year.</em> Did they guess the artist & title anyway?</>
-          )}
+          {phase === PHASE.REVEALED && 'Did they guess the artist & title?'}
           {phase === PHASE.JUDGED && isCorrect && <><em>+1 card.</em> Correct placement and correct guess!</>}
           {phase === PHASE.JUDGED && !isCorrect && <><em>No card.</em> Better luck next round.</>}
         </span>
       </div>
+
+      {/* WRONG / CORRECT — shown before timeline in revealed phase */}
+      {phase === PHASE.REVEALED && (
+        <div style={{ display: 'flex', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
+          <button
+            onClick={() => handleJudge(false)}
+            style={{
+              flex: 1, padding: '0.9rem 0.75rem',
+              background: 'var(--surface)', border: 'none', borderRight: '1px solid var(--border)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem',
+              cursor: 'pointer',
+            }}
+          >
+            <span style={{ fontSize: '1.2rem' }}>✕</span>
+            <span className="mono" style={{ fontSize: '0.6rem', color: 'var(--accent)' }}>WRONG</span>
+            <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: '0.72rem', color: 'var(--ink2)' }}>
+              {yearCorrect ? 'Missed artist / title' : 'Wrong year & guess'}
+            </span>
+          </button>
+          <button
+            onClick={() => handleJudge(true)}
+            style={{
+              flex: 1, padding: '0.9rem 0.75rem',
+              background: 'var(--ink)', border: 'none',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem',
+              cursor: 'pointer',
+            }}
+          >
+            <span style={{ fontSize: '1.2rem', color: 'var(--bg)' }}>✓</span>
+            <span className="mono" style={{ fontSize: '0.6rem', color: 'var(--accent2)' }}>CORRECT</span>
+            <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: '0.72rem', color: 'var(--bg)', opacity: 0.7 }}>
+              Got artist & title
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* Timeline */}
       <div style={{ borderTop: '1px solid var(--border)' }}>
@@ -658,7 +695,7 @@ export default function Game({ settings, onQuit }) {
                     key={`s${j}`}
                     ref={el => (slotsRef.current[j] = el)}
                     style={{
-                      width: isPlaced ? 80 : 28,
+                      width: isPlaced ? 110 : 36,
                       flexShrink: 0,
                       display: 'flex',
                       alignItems: 'center',
@@ -668,7 +705,7 @@ export default function Game({ settings, onQuit }) {
                       borderRadius: 2,
                       margin: '0 2px',
                       transition: 'all 0.15s',
-                      minHeight: 90,
+                      minHeight: 120,
                     }}
                   >
                     {isPlaced ? (
@@ -716,40 +753,6 @@ export default function Game({ settings, onQuit }) {
             <span>Reveal the song</span></div>
             <span>→</span>
           </button>
-        )}
-        {phase === PHASE.REVEALED && (
-          <div style={{ display: 'flex' }}>
-            <button
-              onClick={() => handleJudge(false)}
-              style={{
-                flex: 1, padding: '1rem 0.75rem',
-                background: 'var(--surface)', border: 'none', borderRight: '1px solid var(--border)',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem',
-                cursor: 'pointer',
-              }}
-            >
-              <span style={{ fontSize: '1.4rem' }}>✕</span>
-              <span className="mono" style={{ fontSize: '0.6rem', color: 'var(--accent)' }}>WRONG</span>
-              <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: '0.75rem', color: 'var(--ink2)' }}>
-                {yearCorrect ? 'Missed artist / title' : 'Wrong year & guess'}
-              </span>
-            </button>
-            <button
-              onClick={() => handleJudge(true)}
-              style={{
-                flex: 1, padding: '1rem 0.75rem',
-                background: 'var(--ink)', border: 'none',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem',
-                cursor: 'pointer',
-              }}
-            >
-              <span style={{ fontSize: '1.4rem', color: 'var(--bg)' }}>✓</span>
-              <span className="mono" style={{ fontSize: '0.6rem', color: 'var(--accent2)' }}>CORRECT</span>
-              <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: '0.75rem', color: 'var(--bg)', opacity: 0.7 }}>
-                {yearCorrect ? 'Got artist & title' : 'Got artist & title'}
-              </span>
-            </button>
-          </div>
         )}
         {phase === PHASE.JUDGED && (
           <button onClick={handleNext} className="btn-primary">
@@ -884,7 +887,7 @@ function TLCard({ card, teamColor }) {
   if (card.isAnchor) {
     return (
       <div style={{
-        width: 80, height: 90, flexShrink: 0,
+        width: 110, height: 120, flexShrink: 0,
         background: 'var(--card)',
         border: `1px solid ${teamColor}`,
         borderRadius: 3,
@@ -893,13 +896,13 @@ function TLCard({ card, teamColor }) {
         gap: 4, margin: '0 2px',
       }}>
         <span className="mono" style={{ fontSize: '0.5rem', color: teamColor }}>START YEAR</span>
-        <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontWeight: 900, fontSize: '1.4rem', color: teamColor, lineHeight: 1 }}>{card.year}</span>
+        <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontWeight: 900, fontSize: '1.8rem', color: teamColor, lineHeight: 1 }}>{card.year}</span>
       </div>
     )
   }
   return (
     <div style={{
-      width: 80, height: 90, flexShrink: 0,
+      width: 110, height: 120, flexShrink: 0,
       background: 'var(--card)',
       border: '1px solid var(--border)',
       borderRadius: 3,
@@ -909,10 +912,10 @@ function TLCard({ card, teamColor }) {
       margin: '0 2px',
     }}>
       <div style={{ width: 7, height: 7, borderRadius: '50%', background: teamColor, position: 'absolute', top: 5, right: 5 }} />
-      <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontWeight: 900, fontSize: '1.5rem', color: 'var(--accent)', lineHeight: 1, marginBottom: 'auto' }}>{card.year}</span>
+      <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontWeight: 900, fontSize: '1.8rem', color: 'var(--accent)', lineHeight: 1, marginBottom: 'auto' }}>{card.year}</span>
       <div>
-        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '0.62rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{card.artist}</div>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.52rem', color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{card.title}</div>
+        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '0.72rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{card.artist}</div>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.6rem', color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{card.title}</div>
       </div>
     </div>
   )
@@ -921,43 +924,77 @@ function TLCard({ card, teamColor }) {
 function MiniMysteryCard() {
   return (
     <div style={{
-      width: 72, height: 86,
+      width: 110, height: 120,
       background: 'var(--surface)',
       border: '1px dashed var(--accent)',
       borderRadius: 3,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
-      <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontWeight: 900, fontSize: '1.8rem', color: 'var(--muted)' }}>?</span>
+      <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontWeight: 900, fontSize: '2rem', color: 'var(--muted)' }}>?</span>
     </div>
   )
 }
 
 function RevealedTLCard({ song, yearCorrect, correct, teamColor }) {
-  // During REVEALED phase correct is null (not judged yet); use yearCorrect for color
   const judged = correct !== null
   const borderColor = judged ? (correct ? 'var(--green)' : 'var(--accent)') : (yearCorrect ? 'var(--green)' : 'var(--accent)')
   const yearColor = yearCorrect ? 'var(--green)' : 'var(--accent)'
   return (
     <div style={{
-      width: 72, height: 86,
+      width: 110, height: 120,
       background: yearCorrect ? 'rgba(58,93,74,0.08)' : 'rgba(196,83,58,0.08)',
       border: `1px solid ${borderColor}`,
       borderRadius: 3,
       display: 'flex', flexDirection: 'column',
-      padding: '5px',
+      padding: '7px',
       position: 'relative',
     }}>
-      <div style={{ width: 6, height: 6, borderRadius: '50%', background: teamColor, position: 'absolute', top: 4, right: 4 }} />
-      <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontWeight: 900, fontSize: '1.3rem', color: yearColor, lineHeight: 1, marginBottom: 'auto' }}>{song?.year}</span>
+      <div style={{ width: 7, height: 7, borderRadius: '50%', background: teamColor, position: 'absolute', top: 5, right: 5 }} />
+      <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontWeight: 900, fontSize: '1.8rem', color: yearColor, lineHeight: 1, marginBottom: 'auto' }}>{song?.year}</span>
       <div>
-        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '0.6rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song?.artist}</div>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.5rem', color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song?.title}</div>
+        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '0.72rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song?.artist}</div>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.6rem', color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song?.title}</div>
         {judged && (
-          <div className="mono" style={{ fontSize: '0.5rem', marginTop: 2, color: correct ? 'var(--green)' : 'var(--accent)' }}>
+          <div className="mono" style={{ fontSize: '0.52rem', marginTop: 3, color: correct ? 'var(--green)' : 'var(--accent)' }}>
             {correct ? 'KEEPER' : 'NO CARD'}
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function SongRevealCard({ song, yearCorrect, judged, correct }) {
+  const accentColor = judged
+    ? (correct ? 'var(--green)' : 'var(--accent)')
+    : (yearCorrect ? 'var(--green)' : 'var(--accent)')
+  return (
+    <div style={{
+      margin: '0.75rem 1.25rem',
+      padding: '1.1rem 1.25rem',
+      background: yearCorrect ? 'rgba(58,93,74,0.06)' : 'rgba(196,83,58,0.06)',
+      border: `1px solid ${accentColor}`,
+      borderRadius: 4,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.6rem', marginBottom: '0.5rem' }}>
+        <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontWeight: 900, fontSize: '2.6rem', lineHeight: 1, color: accentColor }}>
+          {song?.year}
+        </span>
+        <span className="mono" style={{ fontSize: '0.55rem', color: accentColor }}>
+          {yearCorrect ? '✓ YEAR' : '✕ WRONG YEAR'}
+        </span>
+      </div>
+      <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: '1.1rem', lineHeight: 1.25, marginBottom: '0.2rem', color: 'var(--ink)' }}>
+        {song?.artist}
+      </div>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.78rem', color: 'var(--ink2)' }}>
+        {song?.title}
+      </div>
+      {judged && (
+        <div className="mono" style={{ fontSize: '0.58rem', marginTop: '0.6rem', color: accentColor }}>
+          {correct ? '✓ +1 CARD EARNED' : '✕ NO CARD THIS ROUND'}
+        </div>
+      )}
     </div>
   )
 }
