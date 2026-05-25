@@ -15,6 +15,16 @@ async function initDb() {
   if (!pool) { console.log('No DATABASE_URL — session tracking disabled'); return }
   try {
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS high_scores (
+        id           SERIAL PRIMARY KEY,
+        name         TEXT NOT NULL,
+        score        INTEGER NOT NULL,
+        difficulty   TEXT NOT NULL,
+        decades      TEXT[],
+        created_at   TIMESTAMPTZ DEFAULT NOW()
+      )
+    `)
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS sessions (
         id              SERIAL PRIMARY KEY,
         started_at      TIMESTAMPTZ DEFAULT NOW(),
@@ -137,6 +147,38 @@ app.get('/api/preview', async (req, res) => {
     res.json({ url })
   } catch {
     res.json({ url: null })
+  }
+})
+
+// ── High scores ────────────────────────────────────────────────
+app.get('/api/scores', async (req, res) => {
+  if (!pool) return res.json([])
+  try {
+    const { difficulty = 'medium' } = req.query
+    const result = await pool.query(
+      `SELECT id, name, score, created_at FROM high_scores
+       WHERE difficulty=$1 ORDER BY score DESC, created_at ASC LIMIT 10`,
+      [difficulty]
+    )
+    res.json(result.rows)
+  } catch (e) {
+    console.error('scores GET:', e.message)
+    res.json([])
+  }
+})
+
+app.post('/api/scores', async (req, res) => {
+  if (!pool) return res.json({ ok: true })
+  try {
+    const { name, score, difficulty, decades } = req.body
+    await pool.query(
+      `INSERT INTO high_scores (name, score, difficulty, decades) VALUES ($1, $2, $3, $4)`,
+      [String(name).slice(0, 20), parseInt(score), difficulty, decades]
+    )
+    res.json({ ok: true })
+  } catch (e) {
+    console.error('scores POST:', e.message)
+    res.json({ ok: true })
   }
 })
 

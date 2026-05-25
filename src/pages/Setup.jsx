@@ -16,7 +16,7 @@ const DIFFICULTIES = [
 ]
 const TEAM_COLORS = ['#c4533a', '#3a5d4a', '#d4a13a', '#5a4a8a', '#2a4a7a', '#a8527a']
 
-export default function Setup({ onStart, onDemo }) {
+export default function Setup({ onStart, onBack }) {
   const [teams, setTeams] = useState([
     { name: 'Team 1' },
     { name: 'Team 2' },
@@ -46,7 +46,7 @@ export default function Setup({ onStart, onDemo }) {
   }
 
   function removeTeam() {
-    if (teams.length <= 1) return
+    if (teams.length <= 2) return
     setTeams(prev => prev.slice(0, -1))
   }
 
@@ -65,12 +65,9 @@ export default function Setup({ onStart, onDemo }) {
         fontFamily: "'JetBrains Mono', monospace", fontSize: '0.62rem',
         letterSpacing: '0.18em', color: 'var(--label)',
       }}>
-        <span>SIDE A · TRACKLIST</span>
-        <span style={{ fontSize: '0.9rem' }}>◐</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <span>33⅓ RPM</span>
-          {onDemo && <button className="btn-ghost" onClick={onDemo} style={{ fontSize: '0.58rem', padding: '0.25rem 0.5rem' }}>DEMO</button>}
-        </div>
+        <button className="btn-ghost" onClick={onBack} style={{ fontSize: '0.58rem', padding: '0.25rem 0.5rem' }}>← BACK</button>
+        <span>SIDE A · PARTY</span>
+        <span>33⅓ RPM</span>
       </div>
 
       {/* Hero */}
@@ -153,12 +150,12 @@ export default function Setup({ onStart, onDemo }) {
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
             <button
               onClick={removeTeam}
-              disabled={teams.length <= 1}
+              disabled={teams.length <= 2}
               style={{
                 flex: 1, padding: '0.6rem',
                 border: '1px solid var(--border)', background: 'transparent',
-                cursor: teams.length <= 1 ? 'default' : 'pointer',
-                opacity: teams.length <= 1 ? 0.3 : 1,
+                cursor: teams.length <= 2 ? 'default' : 'pointer',
+                opacity: teams.length <= 2 ? 0.3 : 1,
                 fontFamily: "'JetBrains Mono', monospace", fontSize: '0.65rem', letterSpacing: '0.1em',
               }}
             >− Remove team</button>
@@ -298,7 +295,7 @@ export default function Setup({ onStart, onDemo }) {
       <div style={{ padding: '0.5rem 1.25rem 2rem' }}>
         <button
           onClick={handleStart}
-          disabled={teams.some(t => !t.name.trim()) || decades.length === 0}
+          disabled={teams.some(t => !t.name.trim()) || decades.length === 0 || teams.length < 2}
           style={{
             width: '100%', border: '1px solid var(--ink)',
             background: 'var(--ink)', color: 'var(--bg)',

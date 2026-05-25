@@ -59,6 +59,7 @@ const PHASE = {
   JUDGED: 'judged',
   HANDOFF: 'handoff',
   DONE: 'done',
+  GAMEOVER: 'gameover',
 }
 
 function randomAnchorYear(decades) {
@@ -73,7 +74,8 @@ function randomAnchorYear(decades) {
   return all[Math.floor(Math.random() * all.length)]
 }
 
-export default function Game({ settings, onQuit }) {
+export default function Game({ settings, onQuit, onScores }) {
+  const isSolo = !!settings.solo
   const [phase, setPhase] = useState(PHASE.LOADING)
   const [tracks, setTracks] = useState([])
   const [trackIdx, setTrackIdx] = useState(0)
@@ -91,6 +93,9 @@ export default function Game({ settings, onQuit }) {
   const [progress, setProgress] = useState(0)
   const [roundCount, setRoundCount] = useState(0)
   const [loadStep, setLoadStep] = useState(0)
+  const [lives, setLives] = useState(3)
+  const [playerName, setPlayerName] = useState('')
+  const [scoreSubmitted, setScoreSubmitted] = useState(false)
 
   // drag state
   const [drag, setDrag] = useState(null)
@@ -250,6 +255,18 @@ export default function Game({ settings, onQuit }) {
     setPlaying(false)
     if (!settings.demo) pauseSong()
     if (!settings.demo) playedTracksRef.current.push({ id: currentTrack.id, year: currentTrack.year, title: currentTrack.title, artist: currentTrack.artist })
+
+    if (isSolo) {
+      if (yc) {
+        const newCard = { title: currentTrack.title, artist: currentTrack.artist, year: currentTrack.year, albumArt: currentTrack.albumArt }
+        const newTimeline = [...timeline.slice(0, placedSlot), newCard, ...timeline.slice(placedSlot)]
+        setTeams(prev => prev.map((t, i) =>
+          i === teamIdx ? { ...t, timeline: newTimeline, score: t.score + 1 } : t
+        ))
+      } else {
+        setLives(l => l - 1)
+      }
+    }
   }
 
   function handleJudge(guessedTitle) {
@@ -267,6 +284,34 @@ export default function Game({ settings, onQuit }) {
   }
 
   const TARGET = settings.target ?? 10
+
+  function handleSoloNext() {
+    if (lives <= 0 || trackIdx + 1 >= tracks.length) {
+      if (!settings.demo) {
+        sessionEnd({
+          completed: true,
+          rounds_played: trackIdx + 1,
+          final_scores: teams.map(t => ({ name: t.name, score: t.score })),
+          songs: playedTracksRef.current,
+        })
+      }
+      setPhase(PHASE.GAMEOVER)
+    } else {
+      handleBeginTurn()
+    }
+  }
+
+  async function handleSubmitScore() {
+    const score = teams[0].score
+    try {
+      await fetch('/api/scores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: playerName.trim(), score, difficulty: settings.difficulty, decades: settings.decades }),
+      })
+    } catch {}
+    setScoreSubmitted(true)
+  }
 
   function handleNext() {
     const gameOver = teams.some(t => t.score >= TARGET) || trackIdx + 1 >= tracks.length
@@ -535,6 +580,97 @@ export default function Game({ settings, onQuit }) {
     )
   }
 
+  // ─── Game over (solo) ─────────────────────────────────────────
+  if (phase === PHASE.GAMEOVER) {
+    const score = teams[0].score
+    return (
+      <div style={{ minHeight: '100%', background: 'var(--bg)', maxWidth: 480, margin: '0 auto', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
+          <span className="mono" style={{ fontSize: '0.62rem' }}>SIDE B · SOLO</span>
+          <span className="mono" style={{ fontSize: '0.62rem' }}>— GAME OVER —</span>
+        </div>
+
+        <div style={{ flex: 1, padding: '1.25rem 1.5rem 0' }}>
+          <div className="mono" style={{ color: 'var(--accent)', fontSize: '0.62rem', marginBottom: '0.4rem' }}>THE NEEDLE LIFTS ON</div>
+          <div style={{ borderTop: '1px solid var(--border)', marginBottom: '1rem' }} />
+
+          {/* Score */}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem', marginBottom: '0.5rem' }}>
+            <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontWeight: 900, fontSize: 'clamp(4rem, 20vw, 6rem)', lineHeight: 1, color: 'var(--accent)', letterSpacing: '-0.04em' }}>{score}</span>
+            <div>
+              <div className="mono" style={{ fontSize: '0.62rem', letterSpacing: '0.1em' }}>CARDS</div>
+              <div className="mono" style={{ fontSize: '0.55rem', color: 'var(--muted)' }}>PLACED CORRECTLY</div>
+            </div>
+          </div>
+
+          {/* Hearts — all lost */}
+          <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '1.5rem' }}>
+            {[0,1,2].map(i => <span key={i} style={{ fontSize: '1.1rem', color: 'var(--border)' }}>♥</span>)}
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--border)', marginBottom: '1.25rem' }} />
+
+          {/* Name entry */}
+          {!scoreSubmitted ? (
+            <>
+              <div className="mono" style={{ fontSize: '0.6rem', letterSpacing: '0.15em', marginBottom: '0.6rem' }}>
+                {score > 0 ? 'ENTER YOUR NAME FOR THE LEADERBOARD' : 'BETTER LUCK NEXT TIME'}
+              </div>
+              {score > 0 && (
+                <>
+                  <input
+                    value={playerName}
+                    onChange={e => setPlayerName(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && playerName.trim() && handleSubmitScore()}
+                    maxLength={20}
+                    placeholder="Your name…"
+                    style={{
+                      width: '100%', boxSizing: 'border-box',
+                      fontSize: '1.1rem', padding: '0.75rem 1rem',
+                      border: '1px solid var(--border)', background: 'var(--surface)',
+                      marginBottom: '0.5rem', color: 'var(--ink)',
+                      fontFamily: "'Playfair Display', serif", fontStyle: 'italic',
+                    }}
+                  />
+                  <button
+                    onClick={handleSubmitScore}
+                    disabled={!playerName.trim()}
+                    style={{
+                      width: '100%', padding: '0.85rem',
+                      background: playerName.trim() ? 'var(--ink)' : 'var(--surface)',
+                      color: playerName.trim() ? 'var(--bg)' : 'var(--muted)',
+                      border: '1px solid var(--border)', cursor: playerName.trim() ? 'pointer' : 'default',
+                      fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontWeight: 800, fontSize: '1rem',
+                    }}
+                  >Submit score →</button>
+                </>
+              )}
+            </>
+          ) : (
+            <button
+              onClick={() => onScores({ difficulty: settings.difficulty })}
+              style={{
+                width: '100%', padding: '0.85rem',
+                background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer',
+                fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontWeight: 800, fontSize: '1rem',
+              }}
+            >◆ View leaderboard →</button>
+          )}
+        </div>
+
+        <div style={{ borderTop: '3px solid var(--ink)', display: 'flex' }}>
+          <button onClick={onQuit} style={{
+            flex: 1, padding: '1rem', background: 'transparent', border: 'none',
+            display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.1rem', cursor: 'pointer',
+          }}>
+            <span className="mono" style={{ fontSize: '0.55rem', color: 'var(--muted)' }}>TRY AGAIN</span>
+            <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontWeight: 800, fontSize: '1.1rem' }}>Play again →</span>
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   // ─── Main game ────────────────────────────────────────────────
   const spinning = playing && (phase === PHASE.LISTENING || phase === PHASE.PLACED)
   const revealed = phase === PHASE.REVEALED || phase === PHASE.JUDGED
@@ -570,27 +706,41 @@ export default function Game({ settings, onQuit }) {
       </header>
 
       {/* Scores */}
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
-        {teams.map((t, i) => (
-          <div
-            key={i}
-            style={{
-              flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem',
-              padding: '0.5rem 1rem',
-              background: i === teamIdx ? t.color + '12' : 'transparent',
-              borderRight: i === 0 ? '1px solid var(--border)' : 'none',
-              opacity: i === teamIdx ? 1 : 0.5,
-              transition: 'opacity 0.2s',
-            }}
-          >
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: t.color, flexShrink: 0 }} />
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.72rem', flex: 1 }}>{t.name}</span>
-            <span style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: '0.95rem' }}>
-              {t.score}<span style={{ opacity: 0.35, fontSize: '0.7rem' }}>{`/${TARGET}`}</span>
-            </span>
+      {isSolo ? (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem' }}>
+            <span style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: '1.1rem' }}>{teams[0].score}</span>
+            <span className="mono" style={{ fontSize: '0.55rem', color: 'var(--muted)' }}>CARDS</span>
           </div>
-        ))}
-      </div>
+          <div style={{ display: 'flex', gap: '0.3rem' }}>
+            {[0,1,2].map(i => (
+              <span key={i} style={{ fontSize: '1.1rem', color: i < lives ? 'var(--accent)' : 'var(--border)', transition: 'color 0.3s' }}>♥</span>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
+          {teams.map((t, i) => (
+            <div
+              key={i}
+              style={{
+                flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem',
+                padding: '0.5rem 1rem',
+                background: i === teamIdx ? t.color + '12' : 'transparent',
+                borderRight: i < teams.length - 1 ? '1px solid var(--border)' : 'none',
+                opacity: i === teamIdx ? 1 : 0.5,
+                transition: 'opacity 0.2s',
+              }}
+            >
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: t.color, flexShrink: 0 }} />
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.72rem', flex: 1 }}>{t.name}</span>
+              <span style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: '0.95rem' }}>
+                {t.score}<span style={{ opacity: 0.35, fontSize: '0.7rem' }}>{`/${TARGET}`}</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Stage: turntable + mystery card */}
       <div style={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '1.25rem 1rem 0.5rem', position: 'relative', maxWidth: 480, margin: '0 auto', width: '100%' }}>
@@ -656,9 +806,13 @@ export default function Game({ settings, onQuit }) {
           {phase === PHASE.READY && 'Press Play — then drag the card onto the timeline.'}
           {phase === PHASE.LISTENING && 'Listen — then drag the card onto the timeline.'}
           {phase === PHASE.PLACED && 'Card placed. Discuss the title and artist — then reveal the answer.'}
-          {phase === PHASE.REVEALED && (yearCorrect
+          {phase === PHASE.REVEALED && !isSolo && (yearCorrect
             ? <><em>Year correct.</em> Did they also guess the artist &amp; title?</>
             : <><em>Wrong year.</em> Did they guess the artist &amp; title anyway?</>
+          )}
+          {phase === PHASE.REVEALED && isSolo && (yearCorrect
+            ? <><em>Correct!</em> {teams[0].score} cards placed.</>
+            : <><em>Wrong year.</em> {lives > 0 ? `${lives} heart${lives === 1 ? '' : 's'} remaining.` : 'No hearts left.'}</>
           )}
           {phase === PHASE.JUDGED && isCorrect && <><em>+1 card.</em> Correct placement and correct guess!</>}
           {phase === PHASE.JUDGED && !isCorrect && <><em>No card.</em> Better luck next round.</>}
@@ -750,7 +904,18 @@ export default function Game({ settings, onQuit }) {
             <span>→</span>
           </button>
         )}
-        {phase === PHASE.REVEALED && (
+        {phase === PHASE.REVEALED && isSolo && (
+          <button onClick={handleSoloNext} className="btn-primary">
+            <div>
+              <div className="mono" style={{ fontSize: '0.6rem', color: yearCorrect ? 'var(--accent2)' : 'rgba(196,83,58,0.8)', marginBottom: 2 }}>
+                {yearCorrect ? '✓ CORRECT' : `✕ WRONG · ${lives} HEART${lives === 1 ? '' : 'S'} LEFT`}
+              </div>
+              <span>{lives === 0 ? 'See your score' : 'Next track'}</span>
+            </div>
+            <span>→</span>
+          </button>
+        )}
+        {phase === PHASE.REVEALED && !isSolo && (
           <div style={{ display: 'flex' }}>
             <button
               onClick={() => handleJudge(false)}
@@ -784,7 +949,7 @@ export default function Game({ settings, onQuit }) {
             </button>
           </div>
         )}
-        {phase === PHASE.JUDGED && (
+        {phase === PHASE.JUDGED && !isSolo && (
           <button onClick={handleNext} className="btn-primary">
             <div>
               <div className="mono" style={{ fontSize: '0.6rem', color: 'rgba(196,200,180,0.7)', marginBottom: 2 }}>
