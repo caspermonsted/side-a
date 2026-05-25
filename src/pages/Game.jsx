@@ -839,7 +839,7 @@ export default function Game({ settings, onQuit, onScores }) {
               if (it.kind === 'slot') {
                 const j = it.idx
                 const isHover = hoverSlot === j
-                const isPlaced = phase !== PHASE.LISTENING && placedSlot === j && !(phase === PHASE.JUDGED && isCorrect)
+                const isPlaced = phase !== PHASE.LISTENING && placedSlot === j && !(phase === PHASE.JUDGED && isCorrect) && !(isSolo && phase === PHASE.REVEALED && yearCorrect)
                 return (
                   <div
                     key={`s${j}`}
