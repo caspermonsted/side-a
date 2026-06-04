@@ -204,9 +204,9 @@ export default function Game({ settings, onQuit, onScores }) {
       setPlaying(true)
       setProgress(0)
     } catch (e) {
-      if (e.name === 'AbortError') {
-        // Browser interrupted audio loading (race condition) — not a real error,
-        // stay in READY so the user can press Play again.
+      if (e.name === 'AbortError' || e.name === 'NotSupportedError') {
+        // Transient browser audio state error — not a real failure.
+        // Stay in READY so the user can press Play again.
         return
       }
       if (e.message.includes('No preview')) {

@@ -15,6 +15,7 @@ export async function playSong(track) {
   // promise is still pending (e.g. rapid successive calls or top-up skips).
   audio.pause()
   audio.src = track.previewUrl
+  audio.load() // reset element to clean state before playing
   await audio.play()
 }
 
