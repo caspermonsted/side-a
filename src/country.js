@@ -3,18 +3,21 @@ export const COUNTRY_OPTIONS = [
   { code: 'INT', label: 'International' },
 ]
 
-// Maps country code + selected game genre → Spotify genre tag used for the local-hits boost.
-// Spotify genre tags use lowercase words with spaces (e.g. "danish pop", not "danish-pop").
-export const COUNTRY_GENRE_MAP = {
+// Well-known artists per country, organised by decade.
+// One artist is picked at random per selected decade and used to boost the track pool
+// with recognisable local songs. Genre tags were tried but Spotify's catalog barely
+// tags mainstream artists with country-specific genres — artist search is reliable.
+export const COUNTRY_ARTISTS = {
   DK: {
-    all:       'danish pop',
-    pop:       'danish pop',
-    rock:      'danish rock',
-    'hip-hop': 'danish hip hop',
-    dance:     'danish pop',
-    'r&b':     'danish pop',
+    '60s': ['Bamses Venner', 'Gasolin'],
+    '70s': ['Kim Larsen', 'Gnags', 'Gasolin', 'Shu-bi-dua', 'C.V. Jørgensen'],
+    '80s': ['Kim Larsen', 'Gnags', 'D-A-D', 'Tommy Seebach', 'Shu-bi-dua'],
+    '90s': ['Aqua', 'Michael Learns to Rock', 'Whigfield', 'Nephew', 'Kashmir'],
+    '00s': ['Alphabeat', 'Nik & Jay', 'L.O.C.', 'Medina', 'The Raveonettes'],
+    '10s': ['MØ', 'Lukas Graham', 'Volbeat', 'Rasmus Seebach', 'Suspekt'],
+    '20s': ['Lukas Graham', 'Rasmus Seebach', 'Benny Jamz', 'MØ', 'Gilli'],
   },
-  // Future countries added here, e.g. SE: { all: 'swedish pop', … }
+  // Future countries: SE, NO, DE …
 }
 
 const STORAGE_KEY = 'sideA_country'

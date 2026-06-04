@@ -1,5 +1,5 @@
 import { log } from '../log'
-import { COUNTRY_GENRE_MAP } from '../country'
+import { COUNTRY_ARTISTS } from '../country'
 
 async function apiFetch(path) {
   const res = await fetch(`/api${path}`)
@@ -84,25 +84,28 @@ export async function fetchTracks({ decades, difficulty, genre, count = 40, excl
     all.push(...decadeTracks)
   }
 
-  // Country boost: one extra search per decade using a local-genre slug.
-  // Results are added to the same pool and compete fairly after shuffle + dedup.
-  const countrySlug = COUNTRY_GENRE_MAP[country]?.[genre || 'all']
-  if (countrySlug) {
+  // Country boost: for each selected decade, pick one well-known local artist at random
+  // and add their tracks to the pool. Artist search is reliable; Spotify's genre tags
+  // have almost no coverage for country-specific genres like "danish pop".
+  const decadeArtists = COUNTRY_ARTISTS[country]
+  if (decadeArtists) {
     for (const decade of decades) {
+      const artists = decadeArtists[decade]
+      if (!artists?.length) continue
       const [from, to] = DECADE_RANGES[decade]
-      const offset = Math.floor(Math.random() * 80)
-      const cq = `year:${from}-${to} genre:"${countrySlug}"`
+      const artist = artists[Math.floor(Math.random() * artists.length)]
+      const offset = Math.floor(Math.random() * 40)
+      const aq = `artist:"${artist}" year:${from}-${to}`
       try {
-        const data = await apiFetch(`/search?q=${encodeURIComponent(cq)}&type=track&offset=${offset}`)
+        const data = await apiFetch(`/search?q=${encodeURIComponent(aq)}&type=track&offset=${offset}`)
         const filtered = (data.tracks?.items || []).filter(t => {
           if (!t.album?.release_date) return false
           if (exclude.has(t.id)) return false
           const year = parseInt(t.album.release_date.slice(0, 4))
           return year >= from && year <= to
-          // No minimum popularity for country boost — local hits may have lower global scores
         })
         all.push(...filtered)
-      } catch (_) {} // silently skip if country search fails
+      } catch (_) {}
     }
   }
 
