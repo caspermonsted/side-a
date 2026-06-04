@@ -1,4 +1,4 @@
-import { countryFlag, countryLabel } from '../country'
+import { countryLabel } from '../country'
 
 export default function ModeSelect({ onParty, onSolo, onScores, country, onChangeCountry }) {
   return (
@@ -136,11 +136,17 @@ export default function ModeSelect({ onParty, onSolo, onScores, country, onChang
         {country && (
           <button
             onClick={onChangeCountry}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.2rem 0.4rem' }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.2rem 0.4rem' }}
           >
-            <span style={{ fontSize: '1rem', lineHeight: 1 }}>{countryFlag(country)}</span>
+            <span style={{
+              fontFamily: "'JetBrains Mono', monospace", fontSize: '0.48rem',
+              letterSpacing: '0.15em', border: '1px solid var(--border)',
+              padding: '1px 4px', color: 'var(--muted)',
+            }}>
+              {country}
+            </span>
             <span className="mono" style={{ fontSize: '0.5rem', color: 'var(--muted)', letterSpacing: '0.12em' }}>
-              {countryLabel(country).toUpperCase()} ·  CHANGE
+              {countryLabel(country).toUpperCase()} · CHANGE
             </span>
           </button>
         )}

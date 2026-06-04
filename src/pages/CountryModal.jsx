@@ -60,7 +60,18 @@ export default function CountryModal({ onSelect }) {
                 cursor: 'pointer', textAlign: 'left',
               }}
             >
-              <span style={{ fontSize: '2rem', lineHeight: 1, flexShrink: 0 }}>{opt.flag}</span>
+              {/* Code badge — matches the A1/A2 section chips in Setup */}
+              <div style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: '0.62rem', letterSpacing: '0.18em',
+                border: '1px solid var(--ink)',
+                padding: '0.25rem 0.45rem',
+                color: 'var(--ink)', flexShrink: 0,
+                minWidth: 38, textAlign: 'center',
+              }}>
+                {opt.code}
+              </div>
+
               <div>
                 <div style={{
                   fontFamily: "'Playfair Display', serif", fontStyle: 'italic',
@@ -76,6 +87,7 @@ export default function CountryModal({ onSelect }) {
                   {SUBTITLES[opt.code]}
                 </div>
               </div>
+
               <span style={{ marginLeft: 'auto', color: 'var(--border)', fontSize: '0.9rem' }}>→</span>
             </button>
           ))}

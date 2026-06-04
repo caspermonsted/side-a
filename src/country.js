@@ -1,6 +1,6 @@
 export const COUNTRY_OPTIONS = [
-  { code: 'DK', flag: '🇩🇰', label: 'Denmark' },
-  { code: 'INT', flag: '🌍', label: 'International' },
+  { code: 'DK', label: 'Denmark' },
+  { code: 'INT', label: 'International' },
 ]
 
 // Maps country code + selected game genre → Spotify genre slug used for the local-hits boost.
@@ -25,10 +25,6 @@ export function getSavedCountry() {
 
 export function saveCountry(code) {
   try { localStorage.setItem(STORAGE_KEY, code) } catch {}
-}
-
-export function countryFlag(code) {
-  return COUNTRY_OPTIONS.find(c => c.code === code)?.flag ?? '🌍'
 }
 
 export function countryLabel(code) {
