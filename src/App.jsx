@@ -4,14 +4,22 @@ import Setup from './pages/Setup'
 import SoloSetup from './pages/SoloSetup'
 import Game from './pages/Game'
 import Leaderboard from './pages/Leaderboard'
+import CountryModal from './pages/CountryModal'
+import { getSavedCountry, saveCountry } from './country'
 
 export default function App() {
   const [page, setPage] = useState('mode')
   const [gameSettings, setGameSettings] = useState(null)
   const [leaderboardContext, setLeaderboardContext] = useState(null)
+  const [country, setCountry] = useState(getSavedCountry)   // null = not yet chosen
+
+  function handleSelectCountry(code) {
+    saveCountry(code)
+    setCountry(code)
+  }
 
   function handleStart(settings) {
-    setGameSettings(settings)
+    setGameSettings({ ...settings, country })
     setPage('game')
   }
 
@@ -25,10 +33,15 @@ export default function App() {
     setPage('leaderboard')
   }
 
-  if (page === 'mode') return <ModeSelect onParty={() => setPage('partysetup')} onSolo={() => setPage('solosetup')} onScores={() => handleScores(null)} />
-  if (page === 'partysetup') return <Setup onStart={handleStart} onBack={() => setPage('mode')} />
-  if (page === 'solosetup') return <SoloSetup onStart={handleStart} onBack={() => setPage('mode')} onScores={() => handleScores(null)} />
-  if (page === 'game') return <Game settings={gameSettings} onQuit={handleQuit} onScores={handleScores} />
-  if (page === 'leaderboard') return <Leaderboard context={leaderboardContext} onBack={() => setPage('mode')} />
-  return null
+  return (
+    <>
+      {country === null && <CountryModal onSelect={handleSelectCountry} />}
+
+      {page === 'mode' && <ModeSelect onParty={() => setPage('partysetup')} onSolo={() => setPage('solosetup')} onScores={() => handleScores(null)} country={country} onChangeCountry={() => setCountry(null)} />}
+      {page === 'partysetup' && <Setup onStart={handleStart} onBack={() => setPage('mode')} />}
+      {page === 'solosetup' && <SoloSetup onStart={handleStart} onBack={() => setPage('mode')} onScores={() => handleScores(null)} />}
+      {page === 'game' && <Game settings={gameSettings} onQuit={handleQuit} onScores={handleScores} />}
+      {page === 'leaderboard' && <Leaderboard context={leaderboardContext} onBack={() => setPage('mode')} />}
+    </>
+  )
 }

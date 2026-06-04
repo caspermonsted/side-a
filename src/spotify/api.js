@@ -1,4 +1,5 @@
 import { log } from '../log'
+import { COUNTRY_GENRE_MAP } from '../country'
 
 async function apiFetch(path) {
   const res = await fetch(`/api${path}`)
@@ -48,7 +49,7 @@ const OFFSET_RANGE = {
   hard:   { min: 200, max: 700 },
 }
 
-export async function fetchTracks({ decades, difficulty, genre, count = 40, exclude = new Set(), enrichPreviews = false }) {
+export async function fetchTracks({ decades, difficulty, genre, count = 40, exclude = new Set(), enrichPreviews = false, country = null }) {
   const { min: popMin } = POPULARITY[difficulty]
   const { min: offsetMin, max: offsetMax } = OFFSET_RANGE[difficulty]
   const all = []
@@ -81,6 +82,28 @@ export async function fetchTracks({ decades, difficulty, genre, count = 40, excl
     }
 
     all.push(...decadeTracks)
+  }
+
+  // Country boost: one extra search per decade using a local-genre slug.
+  // Results are added to the same pool and compete fairly after shuffle + dedup.
+  const countrySlug = COUNTRY_GENRE_MAP[country]?.[genre || 'all']
+  if (countrySlug) {
+    for (const decade of decades) {
+      const [from, to] = DECADE_RANGES[decade]
+      const offset = Math.floor(Math.random() * 80)
+      const cq = `year:${from}-${to} genre:${countrySlug}`
+      try {
+        const data = await apiFetch(`/search?q=${cq.replace(/ /g, '+')}&type=track&offset=${offset}`)
+        const filtered = (data.tracks?.items || []).filter(t => {
+          if (!t.album?.release_date) return false
+          if (exclude.has(t.id)) return false
+          const year = parseInt(t.album.release_date.slice(0, 4))
+          return year >= from && year <= to
+          // No minimum popularity for country boost — local hits may have lower global scores
+        })
+        all.push(...filtered)
+      } catch (_) {} // silently skip if country search fails
+    }
   }
 
   if (all.length === 0) throw new Error('No songs found. Try selecting more decades or a different genre.')

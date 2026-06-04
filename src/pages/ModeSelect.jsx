@@ -1,4 +1,6 @@
-export default function ModeSelect({ onParty, onSolo, onScores }) {
+import { countryFlag, countryLabel } from '../country'
+
+export default function ModeSelect({ onParty, onSolo, onScores, country, onChangeCountry }) {
   return (
     <div style={{ minHeight: '100%', background: 'var(--bg)', maxWidth: 480, margin: '0 auto', display: 'flex', flexDirection: 'column' }}>
 
@@ -129,8 +131,19 @@ export default function ModeSelect({ onParty, onSolo, onScores }) {
 
       </div>
 
-      <div style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
+      <div style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span className="mono" style={{ fontSize: '0.55rem', color: 'var(--muted)' }}>PUBLISHED BY THE HOUSE</span>
+        {country && (
+          <button
+            onClick={onChangeCountry}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.2rem 0.4rem' }}
+          >
+            <span style={{ fontSize: '1rem', lineHeight: 1 }}>{countryFlag(country)}</span>
+            <span className="mono" style={{ fontSize: '0.5rem', color: 'var(--muted)', letterSpacing: '0.12em' }}>
+              {countryLabel(country).toUpperCase()} ·  CHANGE
+            </span>
+          </button>
+        )}
         <span className="mono" style={{ fontSize: '0.55rem', color: 'var(--muted)' }}>MMXXVI</span>
       </div>
     </div>
