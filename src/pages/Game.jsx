@@ -205,11 +205,16 @@ export default function Game({ settings, onQuit, onScores }) {
 
   // drag handlers
   const onPointerDown = (e) => {
-    if (phase !== PHASE.LISTENING) return
+    if (phase !== PHASE.LISTENING && phase !== PHASE.PLACED) return
     e.preventDefault()
     const el = e.currentTarget
     const r = el.getBoundingClientRect()
     el.setPointerCapture?.(e.pointerId)
+    // Pick the card back up — return to LISTENING so the slot reopens
+    if (phase === PHASE.PLACED) {
+      setPlacedSlot(null)
+      setPhase(PHASE.LISTENING)
+    }
     setDrag({
       x: e.clientX, y: e.clientY,
       offX: e.clientX - (r.left + r.width / 2),
@@ -746,11 +751,11 @@ export default function Game({ settings, onQuit, onScores }) {
       <div style={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '1.25rem 1rem 0.5rem', position: 'relative', maxWidth: 480, margin: '0 auto', width: '100%' }}>
         <Vinyl size={140} spinning={spinning} color={team.color} year={revealed ? currentTrack?.year : null} />
 
-        {/* Mystery card — shown during READY and LISTENING (unless dragging) */}
-        {(phase === PHASE.READY || (phase === PHASE.LISTENING && !drag)) && (
+        {/* Mystery card — shown during READY, LISTENING and PLACED (unless dragging) */}
+        {(phase === PHASE.READY || ((phase === PHASE.LISTENING || phase === PHASE.PLACED) && !drag)) && (
           <MysteryCardEl
             onPointerDown={onPointerDown}
-            draggable={phase === PHASE.LISTENING}
+            draggable={phase === PHASE.LISTENING || phase === PHASE.PLACED}
           />
         )}
 
