@@ -256,10 +256,18 @@ export default function Game({ settings, onQuit, onScores }) {
     const nextYear = placedSlot < timeline.length ? timeline[placedSlot].year : Infinity
     const yc = year >= prevYear && year <= nextYear
     setYearCorrect(yc)
-    setPhase(PHASE.REVEALED)
     setPlaying(false)
     if (!settings.demo) pauseSong()
     if (!settings.demo) playedTracksRef.current.push({ id: currentTrack.id, year: currentTrack.year, title: currentTrack.title, artist: currentTrack.artist })
+
+    // Wrong year in party mode — no point asking about artist, skip straight to JUDGED
+    if (!isSolo && !yc) {
+      setIsCorrect(false)
+      setPhase(PHASE.JUDGED)
+      return
+    }
+
+    setPhase(PHASE.REVEALED)
 
     if (isSolo) {
       if (yc) {
