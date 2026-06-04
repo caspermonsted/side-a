@@ -16,6 +16,15 @@ export async function sessionStart(data) {
   }
 }
 
+export function sessionError(message) {
+  if (!sessionId) return
+  fetch('/api/session/error', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: sessionId, error: message }),
+  }).catch(() => {})
+}
+
 export async function sessionEnd(data) {
   if (!sessionId) return
   const duration_seconds = startTime ? Math.round((Date.now() - startTime) / 1000) : null

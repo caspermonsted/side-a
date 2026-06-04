@@ -45,6 +45,8 @@ async function initDb() {
         songs           JSONB
       )
     `)
+    // Add error column to existing tables that predate it
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS error TEXT`)
     console.log('DB ready')
   } catch (e) {
     console.error('DB init error:', e.message)
@@ -218,6 +220,18 @@ app.post('/api/session/end', async (req, res) => {
     console.error('session/end:', e.message)
     res.json({ ok: true })
   }
+})
+
+// ── Session: error ────────────────────────────────────────────
+app.post('/api/session/error', async (req, res) => {
+  if (!pool) return res.json({ ok: true })
+  try {
+    const { id, error } = req.body
+    if (id) await pool.query(`UPDATE sessions SET error = $1 WHERE id = $2`, [String(error).slice(0, 500), id])
+  } catch (e) {
+    console.error('session/error:', e.message)
+  }
+  res.json({ ok: true })
 })
 
 // ── SPA fallback ───────────────────────────────────────────────

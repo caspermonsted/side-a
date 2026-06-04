@@ -4,7 +4,7 @@ import { playSong, resumeSong, pauseSong } from '../spotify/player'
 
 const platform = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? 'ios' : 'desktop'
 import { log } from '../log'
-import { sessionStart, sessionEnd } from '../session'
+import { sessionStart, sessionEnd, sessionError } from '../session'
 
 const DEMO_TRACKS = [
   { uri: 'd1', title: 'Bohemian Rhapsody', artist: 'Queen', year: 1975, albumArt: null },
@@ -183,6 +183,7 @@ export default function Game({ settings, onQuit, onScores }) {
         setPhase(PHASE.READY)
       } catch (e) {
         log('error', { platform, message: e.message, phase: 'init' })
+        sessionError(e.message)
         setError(e.message)
       }
     }
@@ -217,6 +218,7 @@ export default function Game({ settings, onQuit, onScores }) {
           setTrackIdx(t => t + 1)
         }
       } else {
+        sessionError(e.message)
         setError(e.message)
       }
     }
