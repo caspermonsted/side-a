@@ -103,6 +103,7 @@ export default function Game({ settings, onQuit, onScores }) {
   const slotsRef = useRef([])
   const seenIds = useRef(new Set())
   const fetchingMore = useRef(false)
+  const topupFails = useRef(0)
   const playedTracksRef = useRef([])
 
 
@@ -120,20 +121,24 @@ export default function Game({ settings, onQuit, onScores }) {
     return () => timers.forEach(clearTimeout)
   }, [phase])
 
-  // Silently top up the track list when running low
+  // Silently top up the track list when running low.
+  // Trigger early (> 20 remaining), fetch generously (60), and back off after
+  // repeated failures so we don't hammer the API with doomed rate-limit retries.
   useEffect(() => {
     if (settings.demo || fetchingMore.current) return
     const remaining = tracks.length - trackIdx
-    if (remaining > 15 || tracks.length === 0) return
+    if (remaining > 20 || tracks.length === 0) return
+    if (topupFails.current >= 3) return  // give up after 3 consecutive failures
     fetchingMore.current = true
-    fetchTracks({ ...settings, count: 30, exclude: seenIds.current, enrichPreviews: true })
+    fetchTracks({ ...settings, count: 60, exclude: seenIds.current, enrichPreviews: true })
       .then(more => {
+        topupFails.current = 0
         if (more.length > 0) {
           more.forEach(t => seenIds.current.add(t.id))
           setTracks(prev => [...prev, ...more])
         }
       })
-      .catch(() => {}) // non-critical, game continues with existing tracks
+      .catch(() => { topupFails.current++ })
       .finally(() => { fetchingMore.current = false })
   }, [trackIdx, tracks.length])
 
@@ -144,7 +149,7 @@ export default function Game({ settings, onQuit, onScores }) {
         if (settings.demo) {
           t = shuffled(DEMO_TRACKS)
         } else {
-          t = await fetchTracks({ ...settings, enrichPreviews: true })
+          t = await fetchTracks({ ...settings, count: 60, enrichPreviews: true })
           if (t.length === 0) throw new Error('No songs found. Try selecting more decades.')
           t.forEach(track => seenIds.current.add(track.id))
           log('game_start', {
@@ -188,6 +193,11 @@ export default function Game({ settings, onQuit, onScores }) {
   const currentTeam = teams[teamIdx]
 
   async function handlePlay() {
+    // Safety: ran out of tracks (top-up failed or exhausted)
+    if (!currentTrack) {
+      setPhase(isSolo ? PHASE.GAMEOVER : PHASE.DONE)
+      return
+    }
     try {
       if (!settings.demo) await playSong(currentTrack)
       setPhase(PHASE.LISTENING)
@@ -195,8 +205,12 @@ export default function Game({ settings, onQuit, onScores }) {
       setProgress(0)
     } catch (e) {
       if (e.message.includes('No preview')) {
-        // Skip this track silently and move to the next one
-        setTrackIdx(t => t + 1)
+        // Skip this track — but end the game if it was the last one
+        if (trackIdx + 1 >= tracks.length) {
+          setPhase(isSolo ? PHASE.GAMEOVER : PHASE.DONE)
+        } else {
+          setTrackIdx(t => t + 1)
+        }
       } else {
         setError(e.message)
       }
