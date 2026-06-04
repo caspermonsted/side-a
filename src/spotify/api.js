@@ -91,9 +91,9 @@ export async function fetchTracks({ decades, difficulty, genre, count = 40, excl
     for (const decade of decades) {
       const [from, to] = DECADE_RANGES[decade]
       const offset = Math.floor(Math.random() * 80)
-      const cq = `year:${from}-${to} genre:${countrySlug}`
+      const cq = `year:${from}-${to} genre:"${countrySlug}"`
       try {
-        const data = await apiFetch(`/search?q=${cq.replace(/ /g, '+')}&type=track&offset=${offset}`)
+        const data = await apiFetch(`/search?q=${encodeURIComponent(cq)}&type=track&offset=${offset}`)
         const filtered = (data.tracks?.items || []).filter(t => {
           if (!t.album?.release_date) return false
           if (exclude.has(t.id)) return false

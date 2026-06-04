@@ -3,18 +3,18 @@ export const COUNTRY_OPTIONS = [
   { code: 'INT', label: 'International' },
 ]
 
-// Maps country code + selected game genre → Spotify genre slug used for the local-hits boost.
-// Uses hyphenated slugs so no URL encoding is needed (consistent with the rest of the API calls).
+// Maps country code + selected game genre → Spotify genre tag used for the local-hits boost.
+// Spotify genre tags use lowercase words with spaces (e.g. "danish pop", not "danish-pop").
 export const COUNTRY_GENRE_MAP = {
   DK: {
-    all:     'danish-pop',
-    pop:     'danish-pop',
-    rock:    'danish-rock',
-    'hip-hop': 'danish-hip-hop',
-    dance:   'danish-pop',
-    'r&b':   'danish-pop',
+    all:       'danish pop',
+    pop:       'danish pop',
+    rock:      'danish rock',
+    'hip-hop': 'danish hip hop',
+    dance:     'danish pop',
+    'r&b':     'danish pop',
   },
-  // Future countries added here, e.g. SE, NO, DE …
+  // Future countries added here, e.g. SE: { all: 'swedish pop', … }
 }
 
 const STORAGE_KEY = 'sideA_country'
