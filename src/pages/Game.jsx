@@ -204,6 +204,11 @@ export default function Game({ settings, onQuit, onScores }) {
       setPlaying(true)
       setProgress(0)
     } catch (e) {
+      if (e.name === 'AbortError') {
+        // Browser interrupted audio loading (race condition) — not a real error,
+        // stay in READY so the user can press Play again.
+        return
+      }
       if (e.message.includes('No preview')) {
         // Skip this track — but end the game if it was the last one
         if (trackIdx + 1 >= tracks.length) {
