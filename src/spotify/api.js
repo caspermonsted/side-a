@@ -1,5 +1,4 @@
 import { log } from '../log'
-import { COUNTRY_ARTISTS } from '../country'
 
 async function apiFetch(path) {
   const res = await fetch(`/api${path}`)
@@ -49,7 +48,7 @@ const OFFSET_RANGE = {
   hard:   { min: 200, max: 700 },
 }
 
-export async function fetchTracks({ decades, difficulty, genre, count = 40, exclude = new Set(), enrichPreviews = false, country = null }) {
+export async function fetchTracks({ decades, difficulty, genre, count = 40, exclude = new Set(), enrichPreviews = false }) {
   const { min: popMin } = POPULARITY[difficulty]
   const { min: offsetMin, max: offsetMax } = OFFSET_RANGE[difficulty]
   const all = []
@@ -82,31 +81,6 @@ export async function fetchTracks({ decades, difficulty, genre, count = 40, excl
     }
 
     all.push(...decadeTracks)
-  }
-
-  // Country boost: for each selected decade, pick one well-known local artist at random
-  // and add their tracks to the pool. Artist search is reliable; Spotify's genre tags
-  // have almost no coverage for country-specific genres like "danish pop".
-  const decadeArtists = COUNTRY_ARTISTS[country]
-  if (decadeArtists) {
-    for (const decade of decades) {
-      const artists = decadeArtists[decade]
-      if (!artists?.length) continue
-      const [from, to] = DECADE_RANGES[decade]
-      const artist = artists[Math.floor(Math.random() * artists.length)]
-      const offset = Math.floor(Math.random() * 40)
-      const aq = `artist:"${artist}" year:${from}-${to}`
-      try {
-        const data = await apiFetch(`/search?q=${encodeURIComponent(aq)}&type=track&offset=${offset}`)
-        const filtered = (data.tracks?.items || []).filter(t => {
-          if (!t.album?.release_date) return false
-          if (exclude.has(t.id)) return false
-          const year = parseInt(t.album.release_date.slice(0, 4))
-          return year >= from && year <= to
-        })
-        all.push(...filtered)
-      } catch (_) {}
-    }
   }
 
   if (all.length === 0) throw new Error('No songs found. Try selecting more decades or a different genre.')
