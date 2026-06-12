@@ -47,6 +47,20 @@ async function initDb() {
     `)
     // Add error column to existing tables that predate it
     await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS error TEXT`)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS danish_tracks (
+        id          SERIAL PRIMARY KEY,
+        spotify_id  TEXT UNIQUE NOT NULL,
+        title       TEXT NOT NULL,
+        artist      TEXT NOT NULL,
+        year        INTEGER,
+        decade      TEXT,
+        dk_score    INTEGER DEFAULT 1,
+        preview_url TEXT,
+        album_art   TEXT,
+        added_at    TIMESTAMPTZ DEFAULT NOW()
+      )
+    `)
     console.log('DB ready')
   } catch (e) {
     console.error('DB init error:', e.message)
@@ -181,6 +195,170 @@ app.post('/api/scores', async (req, res) => {
   } catch (e) {
     console.error('scores POST:', e.message)
     res.json({ ok: true })
+  }
+})
+
+// ── Danish import (server-side, one-time) ────────────────────
+function yearToDecade(year) {
+  if (year >= 1960 && year <= 1969) return '60s'
+  if (year >= 1970 && year <= 1979) return '70s'
+  if (year >= 1980 && year <= 1989) return '80s'
+  if (year >= 1990 && year <= 1999) return '90s'
+  if (year >= 2000 && year <= 2009) return '00s'
+  if (year >= 2010 && year <= 2019) return '10s'
+  if (year >= 2020 && year <= 2029) return '20s'
+  return null
+}
+
+function stripWiki(text) {
+  if (!text) return ''
+  return text
+    .replace(/\[\[(?:[^|\]]*\|)?([^\]]*)\]\]/g, '$1')
+    .replace(/\{\{[^}]*\}\}/g, '')
+    .replace(/<ref[^>]*>.*?<\/ref>/gs, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/'{2,3}/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function extractTitle(cell) {
+  const quoted = cell.match(/"([^"]+)"/)
+  if (quoted) return stripWiki(quoted[1])
+  const linked = cell.match(/\[\[(?:[^|\]]*\|)?([^\]]*)\]\]/)
+  if (linked) return stripWiki(linked[1])
+  return stripWiki(cell) || null
+}
+
+function parseWikitext(wikitext) {
+  const tracks = []
+  const lines = wikitext.split('\n')
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
+    if (!line.startsWith('|') || line.startsWith('|}') || line.startsWith('|-')) continue
+    const cells = line.replace(/^\|/, '').split('||').map(c => c.trim())
+    let title = null, artist = null
+    if (cells.length >= 3) { title = extractTitle(cells[1]); artist = stripWiki(cells[2]) }
+    else if (cells.length === 2) { title = extractTitle(cells[0]); artist = stripWiki(cells[1]) }
+    if (!title && i + 2 < lines.length) {
+      const n1 = lines[i + 1]?.trim(); const n2 = lines[i + 2]?.trim()
+      if (n1?.startsWith('|') && n2?.startsWith('|')) {
+        title = extractTitle(n1.replace(/^\|/, '').trim())
+        artist = stripWiki(n2.replace(/^\|/, '').trim())
+        i += 2
+      }
+    }
+    if (title && artist && title.length > 0 && artist.length > 0) tracks.push({ title, artist })
+  }
+  return tracks
+}
+
+let importRunning = false
+
+async function runDanishImport() {
+  if (importRunning) { console.log('[DK] Import already running'); return }
+  importRunning = true
+  console.log('[DK] Starting Danish track import...')
+
+  const WIKI_PAGES = [
+    ...Array.from({ length: 13 }, (_, i) => `List_of_number-one_hits_of_${1987 + i}_(Denmark)`),
+    'List_of_number-one_songs_of_the_2000s_(Denmark)',
+    ...Array.from({ length: 15 }, (_, i) => `List_of_number-one_hits_of_${2010 + i}_(Denmark)`),
+  ]
+
+  const trackMap = new Map()
+  for (const pageName of WIKI_PAGES) {
+    try {
+      const url = `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(pageName)}&prop=wikitext&format=json&formatversion=2`
+      const r = await fetch(url, { headers: { 'User-Agent': 'SideA-MusicGame/1.0' } })
+      const data = await r.json()
+      if (data.error) { console.log(`[DK] Skip ${pageName}: ${data.error.info}`); continue }
+      const tracks = parseWikitext(data.parse.wikitext)
+      console.log(`[DK] ${pageName}: ${tracks.length} entries`)
+      for (const t of tracks) {
+        const key = `${t.artist.toLowerCase()}|${t.title.toLowerCase()}`
+        trackMap.has(key) ? trackMap.get(key).dk_score++ : trackMap.set(key, { ...t, dk_score: 1 })
+      }
+    } catch (e) { console.log(`[DK] Error ${pageName}: ${e.message}`) }
+  }
+
+  const unique = [...trackMap.values()]
+  console.log(`[DK] Unique tracks to look up: ${unique.length}`)
+
+  let found = 0, previews = 0, inserted = 0
+  for (let i = 0; i < unique.length; i++) {
+    const { artist, title, dk_score } = unique[i]
+    try {
+      const token = await getSpotifyToken()
+      const q = `artist:"${artist}" track:"${title}"`
+      const sr = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=track&market=DK&limit=5`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (sr.status === 429) {
+        const wait = (parseInt(sr.headers.get('Retry-After') || '10') + 1) * 1000
+        console.log(`[DK] Rate limited, waiting ${wait / 1000}s`)
+        await new Promise(r => setTimeout(r, wait))
+        i--; continue
+      }
+      const sd = await sr.json()
+      const items = sd.tracks?.items || []
+      if (!items.length) { console.log(`[DK] [${i+1}/${unique.length}] Not found: ${artist} — ${title}`); continue }
+      const titleLow = title.toLowerCase()
+      const track = items.find(t => t.name.toLowerCase() === titleLow) ||
+                    items.find(t => t.name.toLowerCase().includes(titleLow)) || items[0]
+      found++
+      const year = parseInt(track.album.release_date?.slice(0, 4)) || null
+      const decade = year ? yearToDecade(year) : null
+      let previewUrl = track.preview_url || null
+      if (!previewUrl) {
+        try {
+          const dr = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(`${artist} ${title}`)}&limit=5`)
+          const dd = await dr.json()
+          previewUrl = dd.data?.find(d => d.preview)?.preview ?? null
+        } catch {}
+      }
+      if (previewUrl) previews++
+      const albumArt = track.album.images[1]?.url || track.album.images[0]?.url || null
+      await pool.query(
+        `INSERT INTO danish_tracks (spotify_id, title, artist, year, decade, dk_score, preview_url, album_art)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+         ON CONFLICT (spotify_id) DO UPDATE SET dk_score = danish_tracks.dk_score + EXCLUDED.dk_score`,
+        [track.id, track.name, track.artists.map(a => a.name).join(', '), year, decade, dk_score, previewUrl, albumArt]
+      )
+      inserted++
+      console.log(`[DK] [${i+1}/${unique.length}] ✓ ${artist} — ${title} (${decade})`)
+    } catch (e) { console.log(`[DK] [${i+1}/${unique.length}] Error: ${e.message}`) }
+    await new Promise(r => setTimeout(r, 130))
+  }
+
+  const summary = await pool.query(`SELECT decade, COUNT(*) AS c FROM danish_tracks GROUP BY decade ORDER BY decade`)
+  console.log(`[DK] === Import complete: ${inserted} inserted, ${found} Spotify matches, ${previews} with preview ===`)
+  summary.rows.forEach(r => console.log(`[DK]   ${r.decade ?? 'null'}: ${r.c} tracks`))
+  importRunning = false
+}
+
+app.post('/api/admin/import-danish', (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' })
+  res.json({ started: true, message: 'Import running in background — watch Railway logs for progress' })
+  runDanishImport().catch(e => { console.error('[DK] Import failed:', e.message); importRunning = false })
+})
+
+// ── Danish tracks ─────────────────────────────────────────────
+app.get('/api/danish-tracks', async (req, res) => {
+  if (!pool) return res.json([])
+  try {
+    const decades = (req.query.decades || '').split(',').map(d => d.trim()).filter(Boolean)
+    const count = Math.min(parseInt(req.query.count) || 15, 50)
+    if (decades.length === 0) return res.json([])
+    const result = await pool.query(
+      `SELECT spotify_id AS id, title, artist, year, decade, preview_url AS "previewUrl", album_art AS "albumArt"
+       FROM danish_tracks WHERE decade = ANY($1) ORDER BY RANDOM() LIMIT $2`,
+      [decades, count]
+    )
+    res.json(result.rows)
+  } catch (e) {
+    console.error('danish-tracks GET:', e.message)
+    res.json([])
   }
 })
 

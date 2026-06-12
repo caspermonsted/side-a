@@ -48,10 +48,24 @@ const OFFSET_RANGE = {
   hard:   { min: 200, max: 700 },
 }
 
+async function fetchDanishTracks(decades, count) {
+  try {
+    const qs = `decades=${encodeURIComponent(decades.join(','))}&count=${count}`
+    const res = await fetch(`/api/danish-tracks?${qs}`)
+    if (!res.ok) return []
+    return await res.json()
+  } catch {
+    return []
+  }
+}
+
 export async function fetchTracks({ decades, difficulty, genre, count = 40, exclude = new Set(), enrichPreviews = false }) {
   const { min: popMin } = POPULARITY[difficulty]
   const { min: offsetMin, max: offsetMax } = OFFSET_RANGE[difficulty]
   const all = []
+
+  // Fire Danish tracks request early — runs in parallel with Spotify search
+  const danishPromise = enrichPreviews ? fetchDanishTracks(decades, Math.ceil(count * 0.35)) : Promise.resolve([])
 
   const perDecadeTarget = Math.ceil((count * 1.5) / decades.length)
 
@@ -94,7 +108,29 @@ export async function fetchTracks({ decades, difficulty, genre, count = 40, excl
 
   shuffle(unique)
 
-  let candidates = unique.slice(0, count).map(t => ({
+  // Blend in Danish tracks (up to 30% of final count)
+  const danishRaw = await danishPromise
+  const danishFiltered = danishRaw.filter(d => d.previewUrl && !exclude.has(d.id))
+  const danishCount = Math.min(danishFiltered.length, Math.floor(count * 0.30))
+  const globalCount = count - danishCount
+
+  // Danish tracks are already in the right shape — just need uri field added
+  const danishCandidates = danishFiltered.slice(0, danishCount).map(d => ({
+    id: d.id,
+    uri: `spotify:track:${d.id}`,
+    previewUrl: d.previewUrl,
+    title: d.title,
+    artist: d.artist,
+    year: d.year,
+    albumArt: d.albumArt,
+    isDanish: true,
+  }))
+
+  // Exclude Danish track IDs from global pool to avoid duplicates
+  const danishIds = new Set(danishCandidates.map(d => d.id))
+  const globalPool = unique.filter(t => !danishIds.has(t.id))
+
+  let candidates = globalPool.slice(0, globalCount).map(t => ({
     id: t.id,
     uri: t.uri,
     previewUrl: t.preview_url || null,
@@ -103,6 +139,10 @@ export async function fetchTracks({ decades, difficulty, genre, count = 40, excl
     year: parseInt(t.album.release_date.slice(0, 4)),
     albumArt: t.album.images[1]?.url || t.album.images[0]?.url || null,
   }))
+
+  // Merge Danish + global, shuffle so Danish tracks are spread throughout
+  candidates = [...candidates, ...danishCandidates]
+  shuffle(candidates)
 
   if (enrichPreviews) {
     const withSpotify = candidates.filter(t => t.previewUrl).length
