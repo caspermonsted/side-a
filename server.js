@@ -258,7 +258,9 @@ let importRunning = false
 async function runDanishImport() {
   if (importRunning) { console.log('[DK] Import already running'); return }
   importRunning = true
-  console.log('[DK] Starting Danish track import...')
+  console.log('[DK] Starting Danish track import (popularity filter: < 55)...')
+  await pool.query('TRUNCATE danish_tracks')
+  console.log('[DK] Table cleared')
 
   const WIKI_PAGES = [
     ...Array.from({ length: 13 }, (_, i) => `List_of_number-one_hits_of_${1987 + i}_(Denmark)`),
@@ -306,6 +308,11 @@ async function runDanishImport() {
       const titleLow = title.toLowerCase()
       const track = items.find(t => t.name.toLowerCase() === titleLow) ||
                     items.find(t => t.name.toLowerCase().includes(titleLow)) || items[0]
+      // Skip globally popular tracks — they already surface via Spotify search
+      if (track.popularity >= 55) {
+        console.log(`[DK] [${i+1}/${unique.length}] Skip (pop=${track.popularity}): ${artist} — ${title}`)
+        continue
+      }
       found++
       const year = parseInt(track.album.release_date?.slice(0, 4)) || null
       const decade = year ? yearToDecade(year) : null
