@@ -210,47 +210,12 @@ function yearToDecade(year) {
   return null
 }
 
-function stripWiki(text) {
-  if (!text) return ''
-  return text
-    .replace(/\[\[(?:[^|\]]*\|)?([^\]]*)\]\]/g, '$1')
-    .replace(/\{\{[^}]*\}\}/g, '')
-    .replace(/<ref[^>]*>.*?<\/ref>/gs, '')
-    .replace(/<[^>]+>/g, '')
-    .replace(/'{2,3}/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function extractTitle(cell) {
-  const quoted = cell.match(/"([^"]+)"/)
-  if (quoted) return stripWiki(quoted[1])
-  const linked = cell.match(/\[\[(?:[^|\]]*\|)?([^\]]*)\]\]/)
-  if (linked) return stripWiki(linked[1])
-  return stripWiki(cell) || null
-}
-
-function parseWikitext(wikitext) {
-  const tracks = []
-  const lines = wikitext.split('\n')
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim()
-    if (!line.startsWith('|') || line.startsWith('|}') || line.startsWith('|-')) continue
-    const cells = line.replace(/^\|/, '').split('||').map(c => c.trim())
-    let title = null, artist = null
-    if (cells.length >= 3) { title = extractTitle(cells[1]); artist = stripWiki(cells[2]) }
-    else if (cells.length === 2) { title = extractTitle(cells[0]); artist = stripWiki(cells[1]) }
-    if (!title && i + 2 < lines.length) {
-      const n1 = lines[i + 1]?.trim(); const n2 = lines[i + 2]?.trim()
-      if (n1?.startsWith('|') && n2?.startsWith('|')) {
-        title = extractTitle(n1.replace(/^\|/, '').trim())
-        artist = stripWiki(n2.replace(/^\|/, '').trim())
-        i += 2
-      }
-    }
-    if (title && artist && title.length > 0 && artist.length > 0) tracks.push({ title, artist })
-  }
-  return tracks
+async function fetchLastFmPage(apiKey, page) {
+  const url = `https://ws.audioscrobbler.com/2.0/?method=geo.getTopTracks&country=denmark&limit=50&page=${page}&api_key=${apiKey}&format=json`
+  const r = await fetch(url)
+  const data = await r.json()
+  if (data.error) throw new Error(`Last.fm error ${data.error}: ${data.message}`)
+  return data.tracks?.track || []
 }
 
 let importRunning = false
@@ -258,41 +223,40 @@ let importRunning = false
 async function runDanishImport() {
   if (importRunning) { console.log('[DK] Import already running'); return }
   importRunning = true
-  console.log('[DK] Starting Danish track import (popularity filter: < 55)...')
+
+  const apiKey = process.env.LASTFM_API_KEY
+  if (!apiKey) { console.error('[DK] LASTFM_API_KEY not set'); importRunning = false; return }
+
+  console.log('[DK] Starting Danish track import via Last.fm (popularity filter: < 55)...')
   await pool.query('TRUNCATE danish_tracks')
   console.log('[DK] Table cleared')
 
-  const WIKI_PAGES = [
-    ...Array.from({ length: 13 }, (_, i) => `List_of_number-one_hits_of_${1987 + i}_(Denmark)`),
-    'List_of_number-one_songs_of_the_2000s_(Denmark)',
-    ...Array.from({ length: 15 }, (_, i) => `List_of_number-one_hits_of_${2010 + i}_(Denmark)`),
-  ]
-
-  const trackMap = new Map()
-  for (const pageName of WIKI_PAGES) {
+  // Fetch top tracks in Denmark — 15 pages × 50 = up to 750 candidates
+  const allTracks = []
+  for (let page = 1; page <= 15; page++) {
     try {
-      const url = `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(pageName)}&prop=wikitext&format=json&formatversion=2`
-      const r = await fetch(url, { headers: { 'User-Agent': 'SideA-MusicGame/1.0' } })
-      const data = await r.json()
-      if (data.error) { console.log(`[DK] Skip ${pageName}: ${data.error.info}`); continue }
-      const tracks = parseWikitext(data.parse.wikitext)
-      console.log(`[DK] ${pageName}: ${tracks.length} entries`)
-      for (const t of tracks) {
-        const key = `${t.artist.toLowerCase()}|${t.title.toLowerCase()}`
-        trackMap.has(key) ? trackMap.get(key).dk_score++ : trackMap.set(key, { ...t, dk_score: 1 })
-      }
-    } catch (e) { console.log(`[DK] Error ${pageName}: ${e.message}`) }
+      const tracks = await fetchLastFmPage(apiKey, page)
+      if (!tracks.length) break
+      allTracks.push(...tracks)
+      console.log(`[DK] Last.fm page ${page}: ${tracks.length} tracks (total so far: ${allTracks.length})`)
+    } catch (e) {
+      console.log(`[DK] Last.fm page ${page} error: ${e.message}`)
+      break
+    }
+    await new Promise(r => setTimeout(r, 200))
   }
 
-  const unique = [...trackMap.values()]
-  console.log(`[DK] Unique tracks to look up: ${unique.length}`)
+  console.log(`[DK] Total Last.fm candidates: ${allTracks.length}. Starting Spotify lookups...`)
 
-  let found = 0, previews = 0, inserted = 0
-  for (let i = 0; i < unique.length; i++) {
-    const { artist, title, dk_score } = unique[i]
+  let found = 0, previews = 0, inserted = 0, skipped = 0
+  for (let i = 0; i < allTracks.length; i++) {
+    const { name: title, artist } = allTracks[i]
+    const artistName = typeof artist === 'string' ? artist : artist?.name || ''
+    if (!title || !artistName) continue
+
     try {
       const token = await getSpotifyToken()
-      const q = `artist:"${artist}" track:"${title}"`
+      const q = `artist:"${artistName}" track:"${title}"`
       const sr = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=track&market=DK&limit=5`, {
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -304,42 +268,51 @@ async function runDanishImport() {
       }
       const sd = await sr.json()
       const items = sd.tracks?.items || []
-      if (!items.length) { console.log(`[DK] [${i+1}/${unique.length}] Not found: ${artist} — ${title}`); continue }
+      if (!items.length) {
+        console.log(`[DK] [${i+1}/${allTracks.length}] Not on Spotify: ${artistName} — ${title}`)
+        continue
+      }
       const titleLow = title.toLowerCase()
       const track = items.find(t => t.name.toLowerCase() === titleLow) ||
                     items.find(t => t.name.toLowerCase().includes(titleLow)) || items[0]
+
       // Skip globally popular tracks — they already surface via Spotify search
       if (track.popularity >= 55) {
-        console.log(`[DK] [${i+1}/${unique.length}] Skip (pop=${track.popularity}): ${artist} — ${title}`)
+        skipped++
+        console.log(`[DK] [${i+1}/${allTracks.length}] Skip (pop=${track.popularity}): ${artistName} — ${title}`)
         continue
       }
       found++
+
       const year = parseInt(track.album.release_date?.slice(0, 4)) || null
       const decade = year ? yearToDecade(year) : null
       let previewUrl = track.preview_url || null
       if (!previewUrl) {
         try {
-          const dr = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(`${artist} ${title}`)}&limit=5`)
+          const dr = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(`${artistName} ${title}`)}&limit=5`)
           const dd = await dr.json()
           previewUrl = dd.data?.find(d => d.preview)?.preview ?? null
         } catch {}
       }
       if (previewUrl) previews++
       const albumArt = track.album.images[1]?.url || track.album.images[0]?.url || null
+      // dk_score = Last.fm rank position inverted (position 1 = score 750, position 750 = score 1)
+      const dk_score = allTracks.length - i
+
       await pool.query(
         `INSERT INTO danish_tracks (spotify_id, title, artist, year, decade, dk_score, preview_url, album_art)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-         ON CONFLICT (spotify_id) DO UPDATE SET dk_score = danish_tracks.dk_score + EXCLUDED.dk_score`,
+         ON CONFLICT (spotify_id) DO UPDATE SET dk_score = EXCLUDED.dk_score`,
         [track.id, track.name, track.artists.map(a => a.name).join(', '), year, decade, dk_score, previewUrl, albumArt]
       )
       inserted++
-      console.log(`[DK] [${i+1}/${unique.length}] ✓ ${artist} — ${title} (${decade})`)
-    } catch (e) { console.log(`[DK] [${i+1}/${unique.length}] Error: ${e.message}`) }
+      console.log(`[DK] [${i+1}/${allTracks.length}] ✓ ${artistName} — ${title} (${decade}, pop=${track.popularity})`)
+    } catch (e) { console.log(`[DK] [${i+1}/${allTracks.length}] Error: ${e.message}`) }
     await new Promise(r => setTimeout(r, 130))
   }
 
   const summary = await pool.query(`SELECT decade, COUNT(*) AS c FROM danish_tracks GROUP BY decade ORDER BY decade`)
-  console.log(`[DK] === Import complete: ${inserted} inserted, ${found} Spotify matches, ${previews} with preview ===`)
+  console.log(`[DK] === Import complete: ${inserted} inserted, ${skipped} skipped (too popular), ${previews} with preview ===`)
   summary.rows.forEach(r => console.log(`[DK]   ${r.decade ?? 'null'}: ${r.c} tracks`))
   importRunning = false
 }
