@@ -319,8 +319,7 @@ async function runDanishImport() {
 
 app.post('/api/admin/import-danish', (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' })
-  res.json({ started: true, message: 'Import running in background — watch Railway logs for progress' })
-  runDanishImport().catch(e => { console.error('[DK] Import failed:', e.message); importRunning = false })
+  res.json({ ok: false, message: 'Import disabled — being redesigned to use Deezer instead of Spotify' })
 })
 
 // ── Danish tracks ─────────────────────────────────────────────
