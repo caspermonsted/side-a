@@ -317,6 +317,18 @@ async function runDanishImport() {
   importRunning = false
 }
 
+app.get('/api/admin/danish-tracks', async (req, res) => {
+  if (!pool) return res.json([])
+  try {
+    const result = await pool.query(
+      `SELECT decade, artist, title, year, dk_score,
+              CASE WHEN preview_url IS NOT NULL THEN true ELSE false END AS has_preview
+       FROM danish_tracks ORDER BY decade, dk_score DESC`
+    )
+    res.json({ count: result.rows.length, tracks: result.rows })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 app.post('/api/admin/import-danish', (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' })
   res.json({ ok: false, message: 'Import disabled — being redesigned to use Deezer instead of Spotify' })
