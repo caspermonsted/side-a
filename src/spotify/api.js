@@ -11,7 +11,7 @@ async function deezerPreview(title, artist) {
 // difficulty → target score + range for DB query (score 1=famous, 100=obscure)
 const DIFFICULTY_SCORE = {
   easy:   { score: 12, range: 11 },  // 1–23: instantly recognizable by most people
-  medium: { score: 35, range: 15 },  // 20–50: well-known to music followers
+  medium: { score: 30, range: 10 },  // 20–40: well-known to music followers
   hard:   { score: 72, range: 18 },  // 54–90: only dedicated fans would know
 }
 
