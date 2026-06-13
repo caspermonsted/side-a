@@ -1,12 +1,11 @@
 /**
- * Marks hitlisten songs as is_danish by asking Claude Haiku if the title
- * is written in the Danish language. Asks about the TEXT, not the artist —
- * so it works for obscure Danish artists Haiku wouldn't otherwise know.
- *
- * Safe to re-run — skips songs already marked is_danish = TRUE.
+ * Marks hitlisten songs as is_danish by asking Claude Sonnet if the song
+ * is by a Danish artist or primarily aimed at a Danish audience.
+ * Uses both title AND artist so it catches songs with English titles by Danish acts.
  *
  * Usage:
  *   DATABASE_PUBLIC_URL="..." ANTHROPIC_API_KEY="..." node scripts/classify-danish.js
+ *   node scripts/classify-danish.js legacy    ← for CUID-sourced songs
  */
 
 import pg from 'pg'
@@ -18,7 +17,7 @@ if (!DB_URL || !ANTHROPIC_KEY) { console.error('Missing env vars'); process.exit
 
 const pool = new pg.Pool({ connectionString: DB_URL, ssl: { rejectUnauthorized: false } })
 
-async function isTitleDanish(title, retries = 3) {
+async function isDanishSong(title, artist, retries = 3) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -30,12 +29,18 @@ async function isTitleDanish(title, retries = 3) {
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 5,
       messages: [{ role: 'user', content:
-        `Is the following song title written in the Danish language?\nAnswer only YES or NO.\n\nTitle: "${title}"`
+        `This song appeared on the Danish music charts (hitlisten.nu).\n` +
+        `Answer YES if EITHER of these is true:\n` +
+        `- The song title contains Danish words or is written in Danish\n` +
+        `- The artist is Danish (from Denmark or primarily performing for Danish audiences)\n` +
+        `Answer NO only if the title is in English/other language AND the artist is international.\n` +
+        `Answer only YES or NO.\n\n` +
+        `Title: "${title}"\nArtist: "${artist}"`
       }],
     }),
   })
 
-  if (res.status === 429) { await sleep(10000); return isTitleDanish(title, retries - 1) }
+  if (res.status === 429) { await sleep(10000); return isDanishSong(title, artist, retries - 1) }
   if (!res.ok) throw new Error(`Anthropic ${res.status}`)
 
   const text = (await res.json()).content[0].text.trim().toUpperCase()
@@ -43,7 +48,7 @@ async function isTitleDanish(title, retries = 3) {
 }
 
 async function main() {
-  console.log('=== Danish title language detector ===\n')
+  console.log('=== Danish artist/audience detector ===\n')
 
   const source = process.argv[2] === 'legacy' ? 'legacy' : 'hitlisten'
   const whereClause = source === 'legacy'
@@ -64,10 +69,10 @@ async function main() {
 
   for (let i = 0; i < songs.length; i++) {
     const s = songs[i]
-    process.stdout.write(`[${i + 1}/${songs.length}] ${s.title} ... `)
+    process.stdout.write(`[${i + 1}/${songs.length}] ${s.artist} — ${s.title} ... `)
 
     try {
-      const danish = await isTitleDanish(s.title)
+      const danish = await isDanishSong(s.title, s.artist)
       if (danish) {
         await pool.query(`UPDATE songs SET is_danish = TRUE WHERE id = $1`, [s.id])
         console.log('DANISH')

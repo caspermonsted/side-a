@@ -39,9 +39,9 @@ Rate how recognizable this song is to a typical Danish adult on a scale from 1 t
 
 Use these Danish reference points for calibration:
 - Score 5-15:  Kim Larsen, TV-2, Rasmus Seebach, Thomas Helmig, Medina, Nik & Jay — household names every Dane knows
-- Score 15-30: Anne Linnet, Nephew, Natasja, Alphabeat, Lukas Graham, Scarlet Pleasure, The Minds of 99 — well-known to most Danes
-- Score 30-50: Burhan G, Joey Moe, Carpark North, Infernal, Hej Matematik — known to most Danes who follow pop music
-- Score 50-70: KNA Connected, Jokeren, Jimilian, Donkeyboy — known to Danish music followers, not casual listeners
+- Score 15-30: Anne Linnet, Nephew, Natasja, Alphabeat, Lukas Graham, Scarlet Pleasure, The Minds of 99, Kesi (biggest hits) — well-known to most Danes
+- Score 30-50: Burhan G, Joey Moe, Carpark North, Infernal, Hej Matematik, Gilli (biggest hits), Citybois, Kesi (deep cuts) — known to most Danes who follow pop music
+- Score 50-70: KNA Connected, Jokeren, Jimilian, Donkeyboy, Gilli (deep cuts) — known to Danish music followers, not casual listeners
 - Score 70-85: Minor Danish artists, niche genres, deep cuts from well-known artists
 - Score 85+:   Genuinely obscure even within Denmark — only dedicated fans would know it
 
