@@ -134,7 +134,9 @@ export default function Game({ settings, onQuit, onScores }) {
       topupFails.current = 0
     }
     fetchingMore.current = true
-    fetchTracks({ ...settings, count: 60, exclude: seenIds.current, enrichPreviews: true })
+    // Don't enrichPreviews in top-up — Deezer rate limits cause empty results for Danish songs.
+    // Songs without previews are silently skipped by handlePlay's no-preview catch.
+    fetchTracks({ ...settings, count: 120, exclude: seenIds.current, enrichPreviews: false })
       .then(more => {
         if (more.length > 0) {
           topupFails.current = 0
@@ -218,9 +220,10 @@ export default function Game({ settings, onQuit, onScores }) {
         return
       }
       if (e.message.includes('No preview')) {
-        // Skip this track — but end the game if it was the last one
-        if (trackIdx + 1 >= tracks.length) {
-          setPhase(isSolo ? PHASE.GAMEOVER : PHASE.DONE)
+        // Skip this track. In team games never end here — top-up keeps adding songs.
+        // In solo, only end if truly out of songs.
+        if (isSolo && trackIdx + 1 >= tracks.length) {
+          setPhase(PHASE.GAMEOVER)
         } else {
           setTrackIdx(t => t + 1)
         }
