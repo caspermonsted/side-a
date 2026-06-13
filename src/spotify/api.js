@@ -8,11 +8,11 @@ async function deezerPreview(title, artist) {
   }
 }
 
-// difficulty → target score + range for DB query
+// difficulty → target score + range for DB query (score 1=famous, 100=obscure)
 const DIFFICULTY_SCORE = {
-  easy:   { score: 20, range: 15 },
-  medium: { score: 50, range: 16 },
-  hard:   { score: 80, range: 18 },
+  easy:   { score: 12, range: 11 },  // 1–23: instantly recognizable by most people
+  medium: { score: 35, range: 15 },  // 20–50: well-known to music followers
+  hard:   { score: 72, range: 18 },  // 54–90: only dedicated fans would know
 }
 
 const ALL_DECADES = ['60s', '70s', '80s', '90s', '00s', '10s', '20s']
