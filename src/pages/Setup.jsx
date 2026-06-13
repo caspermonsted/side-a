@@ -13,7 +13,7 @@ export default function Setup({ onStart, onBack }) {
     { name: 'Team 1' },
     { name: 'Team 2' },
   ])
-  const [difficulty, setDifficulty] = useState('medium')
+  const [difficulty, setDifficulty] = useState('easy')
   const [target, setTarget] = useState(10)
 
   function handleStart() {

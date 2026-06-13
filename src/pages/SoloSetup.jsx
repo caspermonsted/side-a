@@ -8,7 +8,7 @@ const DIFFICULTIES = [
 ]
 
 export default function SoloSetup({ onStart, onBack, onScores }) {
-  const [difficulty, setDifficulty] = useState('medium')
+  const [difficulty, setDifficulty] = useState('easy')
 
   function handleStart() {
     onStart({
