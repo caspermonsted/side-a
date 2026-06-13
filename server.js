@@ -317,6 +317,29 @@ async function runDanishImport() {
   importRunning = false
 }
 
+app.get('/api/admin/songs-by-difficulty', async (req, res) => {
+  if (!pool) return res.json([])
+  try {
+    const difficulty = req.query.difficulty || 'easy'
+    const result = await pool.query(`
+      SELECT
+        song->>'title'  AS title,
+        song->>'artist' AS artist,
+        song->>'year'   AS year,
+        COUNT(*)        AS times_played
+      FROM sessions,
+           jsonb_array_elements(songs) AS song
+      WHERE difficulty = $1
+        AND songs IS NOT NULL
+        AND jsonb_typeof(songs) = 'array'
+      GROUP BY title, artist, year
+      ORDER BY times_played DESC, title
+      LIMIT 200
+    `, [difficulty])
+    res.json({ difficulty, count: result.rows.length, songs: result.rows })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 app.get('/api/admin/danish-tracks', async (req, res) => {
   if (!pool) return res.json([])
   try {
