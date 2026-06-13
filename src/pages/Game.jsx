@@ -165,7 +165,6 @@ export default function Game({ settings, onQuit, onScores }) {
             platform,
             decades: settings.decades,
             difficulty: settings.difficulty,
-            genre: settings.genre,
             tracks_loaded: t.length,
           })
           sessionStart({
@@ -173,7 +172,6 @@ export default function Game({ settings, onQuit, onScores }) {
             num_teams: settings.teams.length,
             difficulty: settings.difficulty,
             decades: settings.decades,
-            genre: settings.genre || null,
             target: settings.target ?? 10,
             tracks_loaded: t.length,
           })
@@ -426,7 +424,7 @@ export default function Game({ settings, onQuit, onScores }) {
     const steps = [
       'Connecting to Spotify…',
       'Crate-digging for tracks…',
-      'Filtering by decade & genre…',
+      'Filtering by decade…',
       'Shuffling the setlist…',
       'Dropping the needle…',
     ]

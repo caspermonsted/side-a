@@ -1,14 +1,6 @@
 import { useState } from 'react'
 
 const ALL_DECADES = ['60s', '70s', '80s', '90s', '00s', '10s', '20s']
-const GENRES = [
-  { value: 'all', label: 'All genres' },
-  { value: 'pop', label: 'Pop' },
-  { value: 'rock', label: 'Rock' },
-  { value: 'hip-hop', label: 'Hip-Hop' },
-  { value: 'dance', label: 'Dance' },
-  { value: 'r&b', label: 'R&B/Soul' },
-]
 const DIFFICULTIES = [
   { value: 'easy',   label: 'Easy',   meta: 'Big hits',    desc: 'Songs everyone knows.' },
   { value: 'medium', label: 'Medium', meta: 'Well-known',  desc: 'A fitting crowd.' },
@@ -17,13 +9,12 @@ const DIFFICULTIES = [
 
 export default function SoloSetup({ onStart, onBack, onScores }) {
   const [difficulty, setDifficulty] = useState('medium')
-  const [genre, setGenre] = useState('all')
 
   function handleStart() {
     onStart({
       solo: true,
       teams: [{ name: 'You' }],
-      decades: ALL_DECADES, difficulty, genre,
+      decades: ALL_DECADES, difficulty,
       target: 999,
     })
   }
@@ -97,24 +88,6 @@ export default function SoloSetup({ onStart, onBack, onScores }) {
                 </div>
                 <span style={{ fontSize: '1rem', color: active ? 'var(--accent)' : 'var(--border)', flexShrink: 0 }}>{active ? '●' : '○'}</span>
               </button>
-            )
-          })}
-        </div>
-      </SectionBlock>
-
-      {/* A2 — Genre */}
-      <SectionBlock number="A2" title="Repertoire" sub="Genres">
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-          {GENRES.map(g => {
-            const active = genre === g.value
-            return (
-              <button key={g.value} onClick={() => setGenre(g.value)} style={{
-                border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
-                background: active ? 'var(--accent)' : 'transparent',
-                color: active ? '#fff' : 'var(--ink)',
-                borderRadius: 999, padding: '0.5rem 1rem', cursor: 'pointer',
-                fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontWeight: 600, fontSize: '0.95rem',
-              }}>{g.label}</button>
             )
           })}
         </div>
