@@ -8,24 +8,26 @@ async function deezerPreview(title, artist) {
   }
 }
 
-// difficulty → target score + range for DB query (score 1=famous, 100=obscure)
+// difficulty → score ranges for DB query (score 1=famous, 100=obscure)
+// Danish songs use separate thresholds calibrated to Danish audience recognition
+// (percentile-matched so each bucket holds ~56/20/24% of songs, same as international)
 const DIFFICULTY_SCORE = {
-  easy:   { score: 12, range: 11 },  // 1–23: instantly recognizable by most people
-  medium: { score: 30, range: 10 },  // 20–40: well-known to music followers
-  hard:   { score: 72, range: 18 },  // 54–90: only dedicated fans would know
+  easy:   { score:  9, range:  9, dkScore: 26, dkRange: 26 },  // intl ≤18,   dk ≤52
+  medium: { score: 27, range:  8, dkScore: 62, dkRange: 10 },  // intl 19–35, dk 53–72
+  hard:   { score: 64, range: 28, dkScore: 85, dkRange: 12 },  // intl ≥36,   dk ≥73
 }
 
 const ALL_DECADES = ['60s', '70s', '80s', '90s', '00s', '10s', '20s']
 
 export async function fetchTracks({ difficulty, count = 40, exclude = new Set(), enrichPreviews = false }) {
-  const { score, range } = DIFFICULTY_SCORE[difficulty]
+  const { score, range, dkScore, dkRange } = DIFFICULTY_SCORE[difficulty]
 
   // Fetch per decade in parallel so every game has coverage across all eras.
   // Request extra per decade to absorb failed Deezer previews.
   const perDecade = Math.ceil((count * 2) / ALL_DECADES.length)
   const results = await Promise.all(
     ALL_DECADES.map(decade => {
-      const qs = `decades=${encodeURIComponent(decade)}&score=${score}&range=${range}&count=${perDecade}`
+      const qs = `decades=${encodeURIComponent(decade)}&score=${score}&range=${range}&dkScore=${dkScore}&dkRange=${dkRange}&count=${perDecade}`
       return fetch(`/api/songs?${qs}`).then(r => r.ok ? r.json() : []).catch(() => [])
     })
   )

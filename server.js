@@ -422,22 +422,27 @@ app.get('/api/danish-tracks', async (req, res) => {
 // ── Songs from DB ─────────────────────────────────────────────
 app.get('/api/songs', async (req, res) => {
   if (!pool) return res.json([])
-  const decades = (req.query.decades || '').split(',').filter(Boolean)
-  const score   = parseInt(req.query.score) || 50
-  const range   = parseInt(req.query.range) || 17
-  const count   = Math.min(parseInt(req.query.count) || 40, 100)
+  const decades   = (req.query.decades || '').split(',').filter(Boolean)
+  const score     = parseInt(req.query.score)     || 50
+  const range     = parseInt(req.query.range)     || 17
+  const dkScore   = parseInt(req.query.dkScore)   || score
+  const dkRange   = parseInt(req.query.dkRange)   || range
+  const count     = Math.min(parseInt(req.query.count) || 40, 100)
   if (decades.length === 0) return res.json([])
   try {
     const { rows } = await pool.query(
       `SELECT source_id AS id, title, artist, year, decade, artwork_url AS "albumArt", is_danish AS "isDanish"
        FROM songs
        WHERE decade = ANY($1)
-         AND difficulty_score BETWEEN $2 AND $3
+         AND (
+           (is_danish = FALSE AND difficulty_score BETWEEN $2 AND $3)
+           OR (is_danish = TRUE  AND difficulty_score BETWEEN $4 AND $5)
+         )
          AND excluded = FALSE
          AND year IS NOT NULL
        ORDER BY RANDOM()
-       LIMIT $4`,
-      [decades, score - range, score + range, count]
+       LIMIT $6`,
+      [decades, score - range, score + range, dkScore - dkRange, dkScore + dkRange, count]
     )
     res.json(rows)
   } catch (e) {
