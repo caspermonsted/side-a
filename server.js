@@ -61,6 +61,23 @@ async function initDb() {
         added_at    TIMESTAMPTZ DEFAULT NOW()
       )
     `)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS songs (
+        id              SERIAL PRIMARY KEY,
+        source_id       TEXT UNIQUE NOT NULL,
+        title           TEXT NOT NULL,
+        artist          TEXT NOT NULL,
+        year            INTEGER,
+        decade          TEXT NOT NULL,
+        difficulty      INTEGER NOT NULL DEFAULT 2,
+        listeners       INTEGER,
+        artwork_url     TEXT,
+        is_danish       BOOLEAN DEFAULT FALSE,
+        difficulty_score INTEGER,
+        excluded        BOOLEAN DEFAULT FALSE,
+        added_at        TIMESTAMPTZ DEFAULT NOW()
+      )
+    `)
     console.log('DB ready')
   } catch (e) {
     console.error('DB init error:', e.message)
@@ -397,6 +414,32 @@ app.get('/api/danish-tracks', async (req, res) => {
   } catch (e) {
     console.error('danish-tracks GET:', e.message)
     res.json([])
+  }
+})
+
+// ── Songs from DB ─────────────────────────────────────────────
+app.get('/api/songs', async (req, res) => {
+  if (!pool) return res.json([])
+  const decades = (req.query.decades || '').split(',').filter(Boolean)
+  const score   = parseInt(req.query.score) || 50
+  const range   = parseInt(req.query.range) || 17
+  const count   = Math.min(parseInt(req.query.count) || 40, 100)
+  if (decades.length === 0) return res.json([])
+  try {
+    const { rows } = await pool.query(
+      `SELECT source_id AS id, title, artist, year, decade, artwork_url AS "albumArt", is_danish AS "isDanish"
+       FROM songs
+       WHERE decade = ANY($1)
+         AND difficulty_score BETWEEN $2 AND $3
+         AND excluded = FALSE
+         AND year IS NOT NULL
+       ORDER BY RANDOM()
+       LIMIT $4`,
+      [decades, score - range, score + range, count]
+    )
+    res.json(rows)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
   }
 })
 

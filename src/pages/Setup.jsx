@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-const DECADES = ['60s', '70s', '80s', '90s', '00s', '10s', '20s']
+const ALL_DECADES = ['60s', '70s', '80s', '90s', '00s', '10s', '20s']
 const GENRES = [
   { value: 'all', label: 'All genres' },
   { value: 'pop', label: 'Pop' },
@@ -21,22 +21,15 @@ export default function Setup({ onStart, onBack }) {
     { name: 'Team 1' },
     { name: 'Team 2' },
   ])
-  const [decades, setDecades] = useState(['80s', '90s', '00s', '10s'])
   const [difficulty, setDifficulty] = useState('medium')
   const [genre, setGenre] = useState('all')
   const [target, setTarget] = useState(10)
 
-  function toggleDecade(d) {
-    setDecades(prev =>
-      prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]
-    )
-  }
-
   function handleStart() {
-    if (teams.some(t => !t.name.trim()) || decades.length === 0) return
+    if (teams.some(t => !t.name.trim())) return
     onStart({
       teams: teams.map((t, i) => ({ name: t.name.trim(), color: TEAM_COLORS[i] })),
-      decades, difficulty, genre, target,
+      decades: ALL_DECADES, difficulty, genre, target,
     })
   }
 
@@ -174,36 +167,8 @@ export default function Setup({ onStart, onBack }) {
         </div>
       </SectionBlock>
 
-      {/* A2 — Årtier */}
-      <SectionBlock number="A2" title="Decades" sub={`${decades.length} selected · 1960–2025`}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-          {DECADES.map(d => {
-            const active = decades.includes(d)
-            return (
-              <button
-                key={d}
-                onClick={() => toggleDecade(d)}
-                style={{
-                  border: `1px solid ${active ? 'var(--ink)' : 'var(--border)'}`,
-                  background: active ? 'var(--ink)' : 'transparent',
-                  color: active ? 'var(--bg)' : 'var(--ink)',
-                  padding: '0.6rem 0.9rem',
-                  cursor: 'pointer',
-                  display: 'flex', alignItems: 'baseline', gap: '1px',
-                }}
-              >
-                <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontWeight: 800, fontSize: '1.25rem' }}>
-                  {d.replace('s', '')}
-                </span>
-                <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: '0.75rem' }}>'s</span>
-              </button>
-            )
-          })}
-        </div>
-      </SectionBlock>
-
-      {/* A3 — Sværhedsgrad */}
-      <SectionBlock number="A3" title="Difficulty" sub="One level per session">
+      {/* A2 — Sværhedsgrad */}
+      <SectionBlock number="A2" title="Difficulty" sub="One level per session">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
           {DIFFICULTIES.map(opt => {
             const active = difficulty === opt.value
@@ -237,8 +202,8 @@ export default function Setup({ onStart, onBack }) {
         </div>
       </SectionBlock>
 
-      {/* A4 — Repertoire */}
-      <SectionBlock number="A4" title="Repertoire" sub="Genres">
+      {/* A3 — Repertoire */}
+      <SectionBlock number="A3" title="Repertoire" sub="Genres">
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
           {GENRES.map(g => {
             const active = genre === g.value
@@ -263,8 +228,8 @@ export default function Setup({ onStart, onBack }) {
         </div>
       </SectionBlock>
 
-      {/* A5 — Cards to win */}
-      <SectionBlock number="A5" title="Cards to win" sub="First to this wins">
+      {/* A4 — Cards to win */}
+      <SectionBlock number="A4" title="Cards to win" sub="First to this wins">
         <div style={{ display: 'flex', gap: '0.4rem' }}>
           {[3, 5, 10].map(n => {
             const active = target === n
@@ -295,7 +260,7 @@ export default function Setup({ onStart, onBack }) {
       <div style={{ padding: '0.5rem 1.25rem 2rem' }}>
         <button
           onClick={handleStart}
-          disabled={teams.some(t => !t.name.trim()) || decades.length === 0 || teams.length < 2}
+          disabled={teams.some(t => !t.name.trim()) || teams.length < 2}
           style={{
             width: '100%', border: '1px solid var(--ink)',
             background: 'var(--ink)', color: 'var(--bg)',
