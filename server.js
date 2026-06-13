@@ -317,6 +317,30 @@ async function runDanishImport() {
   importRunning = false
 }
 
+app.get('/api/admin/songs-overview', async (req, res) => {
+  if (!pool) return res.json({})
+  try {
+    const [all, byDiff, sessions] = await Promise.all([
+      pool.query(`
+        SELECT song->>'title' AS title, song->>'artist' AS artist, song->>'year' AS year,
+               COUNT(*) AS times_played
+        FROM sessions, jsonb_array_elements(songs) AS song
+        WHERE songs IS NOT NULL AND jsonb_typeof(songs) = 'array'
+        GROUP BY title, artist, year ORDER BY times_played DESC LIMIT 100
+      `),
+      pool.query(`
+        SELECT difficulty, song->>'title' AS title, song->>'artist' AS artist,
+               COUNT(*) AS times_played
+        FROM sessions, jsonb_array_elements(songs) AS song
+        WHERE songs IS NOT NULL AND jsonb_typeof(songs) = 'array'
+        GROUP BY difficulty, title, artist ORDER BY difficulty, times_played DESC
+      `),
+      pool.query(`SELECT COUNT(*) AS total, difficulty FROM sessions GROUP BY difficulty ORDER BY difficulty`)
+    ])
+    res.json({ top: all.rows, byDiff: byDiff.rows, sessions: sessions.rows })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 app.get('/api/admin/songs-by-difficulty', async (req, res) => {
   if (!pool) return res.json([])
   try {
