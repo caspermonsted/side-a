@@ -128,14 +128,21 @@ export default function Game({ settings, onQuit, onScores }) {
     if (settings.demo || fetchingMore.current) return
     const remaining = tracks.length - trackIdx
     if (remaining > 20 || tracks.length === 0) return
-    if (topupFails.current >= 3) return  // give up after 3 consecutive failures
+    if (topupFails.current >= 3) {
+      // All songs exhausted — clear seen list and recycle rather than ending prematurely
+      seenIds.current.clear()
+      topupFails.current = 0
+    }
     fetchingMore.current = true
     fetchTracks({ ...settings, count: 60, exclude: seenIds.current, enrichPreviews: true })
       .then(more => {
-        topupFails.current = 0
         if (more.length > 0) {
+          topupFails.current = 0
           more.forEach(t => seenIds.current.add(t.id))
           setTracks(prev => [...prev, ...more])
+        } else {
+          // Empty result: every song has been seen — count as failure so we recycle sooner
+          topupFails.current++
         }
       })
       .catch(() => { topupFails.current++ })
@@ -348,7 +355,7 @@ export default function Game({ settings, onQuit, onScores }) {
   }
 
   function handleNext() {
-    const gameOver = teams.some(t => t.score >= TARGET) || trackIdx + 1 >= tracks.length
+    const gameOver = teams.some(t => t.score >= TARGET) || (isSolo && trackIdx + 1 >= tracks.length)
     if (gameOver) {
       log('game_end', {
         platform,
