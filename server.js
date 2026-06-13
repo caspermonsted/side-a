@@ -75,9 +75,11 @@ async function initDb() {
         is_danish       BOOLEAN DEFAULT FALSE,
         difficulty_score INTEGER,
         excluded        BOOLEAN DEFAULT FALSE,
+        album_title     TEXT,
         added_at        TIMESTAMPTZ DEFAULT NOW()
       )
     `)
+    await pool.query(`ALTER TABLE songs ADD COLUMN IF NOT EXISTS album_title TEXT`)
     console.log('DB ready')
   } catch (e) {
     console.error('DB init error:', e.message)
