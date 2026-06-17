@@ -413,7 +413,7 @@ export default function Game({ settings, onQuit, onScores }) {
         }),
       })
       const data = await r.json()
-      setChallengeCount(c => c + 1)
+      if (!data.changed) setChallengeCount(c => c + 1)
       setChallengeResult(data)
 
       if (data.changed) {
