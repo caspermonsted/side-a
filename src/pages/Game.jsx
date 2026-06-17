@@ -96,6 +96,9 @@ export default function Game({ settings, onQuit, onScores }) {
   const [lives, setLives] = useState(3)
   const [playerName, setPlayerName] = useState('')
   const [scoreSubmitted, setScoreSubmitted] = useState(false)
+  const [challengeCount, setChallengeCount] = useState(0)
+  const [challengeLoading, setChallengeLoading] = useState(false)
+  const [challengeResult, setChallengeResult] = useState(null)
 
   // drag state
   const [drag, setDrag] = useState(null)
@@ -394,6 +397,70 @@ export default function Game({ settings, onQuit, onScores }) {
     onQuit()
   }
 
+  async function handleChallenge() {
+    if (challengeCount >= 2 || challengeLoading || !currentTrack) return
+    setChallengeLoading(true)
+    setChallengeResult(null)
+    try {
+      const r = await fetch('/api/challenge-year', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          songId: currentTrack.id,
+          artist: currentTrack.artist,
+          title: currentTrack.title,
+          currentYear: currentTrack.year,
+        }),
+      })
+      const data = await r.json()
+      setChallengeCount(c => c + 1)
+      setChallengeResult(data)
+
+      if (data.changed) {
+        // Update track year in state
+        setTracks(prev => prev.map((t, i) => i === trackIdx ? { ...t, year: data.year } : t))
+
+        // Recalculate yearCorrect with new year
+        const timeline = currentTeam.timeline
+        const prevYear = placedSlot > 0 ? timeline[placedSlot - 1].year : -Infinity
+        const nextYear = placedSlot < timeline.length ? timeline[placedSlot].year : Infinity
+        const newYearCorrect = data.year >= prevYear && data.year <= nextYear
+        setYearCorrect(newYearCorrect)
+
+        if (isSolo) {
+          // Undo the scoring effect from handleReveal and re-apply with updated year
+          if (!yearCorrect && newYearCorrect) {
+            // Was wrong → now correct: restore the life, add card to timeline, +1 score
+            setLives(l => l + 1)
+            const newCard = { title: currentTrack.title, artist: currentTrack.artist, year: data.year, albumArt: currentTrack.albumArt }
+            setTeams(prev => prev.map((t, i) => {
+              if (i !== teamIdx) return t
+              const tl = [...t.timeline.slice(0, placedSlot), newCard, ...t.timeline.slice(placedSlot)]
+              return { ...t, timeline: tl, score: t.score + 1 }
+            }))
+          } else if (yearCorrect && !newYearCorrect) {
+            // Was correct → now wrong: remove card from timeline, -1 score, lose a life
+            setTeams(prev => prev.map((t, i) => {
+              if (i !== teamIdx) return t
+              const tl = [...t.timeline.slice(0, placedSlot), ...t.timeline.slice(placedSlot + 1)]
+              return { ...t, timeline: tl, score: t.score - 1 }
+            }))
+            setLives(l => l - 1)
+          }
+          // Stay in REVEALED — solo player just sees the updated result
+        } else {
+          // Team mode: give second placement attempt — go back to PLACED
+          setIsCorrect(null)
+          setPhase(PHASE.PLACED)
+        }
+      }
+    } catch {
+      setChallengeResult({ error: 'Challenge failed — try again.' })
+    } finally {
+      setChallengeLoading(false)
+    }
+  }
+
   function handleBeginTurn() {
     if (!settings.demo) pauseSong()
     setTrackIdx(t => t + 1)
@@ -403,6 +470,7 @@ export default function Game({ settings, onQuit, onScores }) {
     setIsCorrect(null)
     setProgress(0)
     setPlaying(false)
+    setChallengeResult(null)
     setPhase(PHASE.READY)
   }
 
@@ -947,60 +1015,80 @@ export default function Game({ settings, onQuit, onScores }) {
           </button>
         )}
         {phase === PHASE.REVEALED && isSolo && (
-          <button onClick={handleSoloNext} className="btn-primary">
-            <div>
-              <div className="mono" style={{ fontSize: '0.6rem', color: yearCorrect ? 'var(--accent2)' : 'rgba(196,83,58,0.8)', marginBottom: 2 }}>
-                {yearCorrect ? '✓ CORRECT' : `✕ WRONG · ${lives} HEART${lives === 1 ? '' : 'S'} LEFT`}
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <ChallengeBar
+              count={challengeCount} loading={challengeLoading} result={challengeResult}
+              onChallenge={handleChallenge}
+            />
+            <button onClick={handleSoloNext} className="btn-primary">
+              <div>
+                <div className="mono" style={{ fontSize: '0.6rem', color: yearCorrect ? 'var(--accent2)' : 'rgba(196,83,58,0.8)', marginBottom: 2 }}>
+                  {yearCorrect ? '✓ CORRECT' : `✕ WRONG · ${lives} HEART${lives === 1 ? '' : 'S'} LEFT`}
+                </div>
+                <span>{lives === 0 ? 'See your score' : 'Next track'}</span>
               </div>
-              <span>{lives === 0 ? 'See your score' : 'Next track'}</span>
-            </div>
-            <span>→</span>
-          </button>
-        )}
-        {phase === PHASE.REVEALED && !isSolo && (
-          <div style={{ display: 'flex' }}>
-            <button
-              onClick={() => handleJudge(false)}
-              style={{
-                flex: 1, padding: '1rem 0.75rem',
-                background: 'var(--surface)', border: 'none', borderRight: '1px solid var(--border)',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem',
-                cursor: 'pointer',
-              }}
-            >
-              <span style={{ fontSize: '1.4rem' }}>✕</span>
-              <span className="mono" style={{ fontSize: '0.6rem', color: 'var(--accent)' }}>WRONG</span>
-              <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: '0.75rem', color: 'var(--ink2)' }}>
-                {yearCorrect ? 'Missed artist / title' : 'Wrong year & guess'}
-              </span>
-            </button>
-            <button
-              onClick={() => handleJudge(true)}
-              style={{
-                flex: 1, padding: '1rem 0.75rem',
-                background: 'var(--ink)', border: 'none',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem',
-                cursor: 'pointer',
-              }}
-            >
-              <span style={{ fontSize: '1.4rem', color: 'var(--bg)' }}>✓</span>
-              <span className="mono" style={{ fontSize: '0.6rem', color: 'var(--accent2)' }}>CORRECT</span>
-              <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: '0.75rem', color: 'var(--bg)', opacity: 0.7 }}>
-                Got artist & title
-              </span>
+              <span>→</span>
             </button>
           </div>
         )}
-        {phase === PHASE.JUDGED && !isSolo && (
-          <button onClick={handleNext} className="btn-primary">
-            <div>
-              <div className="mono" style={{ fontSize: '0.6rem', color: 'rgba(196,200,180,0.7)', marginBottom: 2 }}>
-                {isCorrect ? '+1 CARD' : 'NO CARD'}
-              </div>
-              <span>Next — {teams[(teamIdx + 1) % teams.length].name}'s turn</span>
+        {phase === PHASE.REVEALED && !isSolo && (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <ChallengeBar
+              count={challengeCount} loading={challengeLoading} result={challengeResult}
+              onChallenge={handleChallenge}
+            />
+            <div style={{ display: 'flex' }}>
+              <button
+                onClick={() => handleJudge(false)}
+                style={{
+                  flex: 1, padding: '1rem 0.75rem',
+                  background: 'var(--surface)', border: 'none', borderRight: '1px solid var(--border)',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem',
+                  cursor: 'pointer',
+                }}
+              >
+                <span style={{ fontSize: '1.4rem' }}>✕</span>
+                <span className="mono" style={{ fontSize: '0.6rem', color: 'var(--accent)' }}>WRONG</span>
+                <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: '0.75rem', color: 'var(--ink2)' }}>
+                  {yearCorrect ? 'Missed artist / title' : 'Wrong year & guess'}
+                </span>
+              </button>
+              <button
+                onClick={() => handleJudge(true)}
+                style={{
+                  flex: 1, padding: '1rem 0.75rem',
+                  background: 'var(--ink)', border: 'none',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem',
+                  cursor: 'pointer',
+                }}
+              >
+                <span style={{ fontSize: '1.4rem', color: 'var(--bg)' }}>✓</span>
+                <span className="mono" style={{ fontSize: '0.6rem', color: 'var(--accent2)' }}>CORRECT</span>
+                <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: '0.75rem', color: 'var(--bg)', opacity: 0.7 }}>
+                  Got artist & title
+                </span>
+              </button>
             </div>
-            <span>→</span>
-          </button>
+          </div>
+        )}
+        {phase === PHASE.JUDGED && !isSolo && (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {!isCorrect && (
+              <ChallengeBar
+                count={challengeCount} loading={challengeLoading} result={challengeResult}
+                onChallenge={handleChallenge}
+              />
+            )}
+            <button onClick={handleNext} className="btn-primary">
+              <div>
+                <div className="mono" style={{ fontSize: '0.6rem', color: 'rgba(196,200,180,0.7)', marginBottom: 2 }}>
+                  {isCorrect ? '+1 CARD' : 'NO CARD'}
+                </div>
+                <span>Next — {teams[(teamIdx + 1) % teams.length].name}'s turn</span>
+              </div>
+              <span>→</span>
+            </button>
+          </div>
         )}
         </div>
       </div>
@@ -1233,6 +1321,55 @@ function SongRevealCard({ song, yearCorrect, judged, correct }) {
           {correct ? '✓ +1 CARD EARNED' : '✕ NO CARD THIS ROUND'}
         </div>
       )}
+    </div>
+  )
+}
+
+function ChallengeBar({ count, loading, result, onChallenge }) {
+  const remaining = 2 - count
+  const disabled = remaining === 0 || loading
+
+  return (
+    <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+      {result && (
+        <div style={{
+          padding: '0.5rem 1.25rem',
+          borderBottom: '1px solid var(--border)',
+          display: 'flex', alignItems: 'flex-start', gap: '0.5rem',
+        }}>
+          <span style={{ color: result.error ? 'var(--accent)' : result.changed ? 'var(--green)' : 'var(--muted)', flexShrink: 0 }}>
+            {result.error ? '✕' : result.changed ? '✓' : '·'}
+          </span>
+          <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: '0.8rem', color: 'var(--ink2)', lineHeight: 1.35 }}>
+            {result.error
+              ? result.error
+              : result.changed
+                ? `Year updated to ${result.year}. ${result.message}`
+                : `Year ${result.year} confirmed correct. ${result.message}`}
+          </span>
+        </div>
+      )}
+      <button
+        onClick={onChallenge}
+        disabled={disabled}
+        style={{
+          width: '100%', padding: '0.6rem 1.25rem',
+          background: 'transparent', border: 'none',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          cursor: disabled ? 'default' : 'pointer',
+          opacity: disabled ? 0.4 : 1,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.62rem' }}>?</span>
+          <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: '0.82rem', color: 'var(--ink2)' }}>
+            {loading ? 'Searching…' : 'Challenge the year'}
+          </span>
+        </div>
+        <span className="mono" style={{ fontSize: '0.55rem', color: 'var(--muted)' }}>
+          {loading ? '···' : `${remaining} LEFT`}
+        </span>
+      </button>
     </div>
   )
 }

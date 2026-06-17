@@ -80,6 +80,7 @@ async function initDb() {
       )
     `)
     await pool.query(`ALTER TABLE songs ADD COLUMN IF NOT EXISTS album_title TEXT`)
+    await pool.query(`ALTER TABLE songs ADD COLUMN IF NOT EXISTS year_original INTEGER`)
     console.log('DB ready')
   } catch (e) {
     console.error('DB init error:', e.message)
@@ -498,6 +499,69 @@ app.post('/api/session/error', async (req, res) => {
     console.error('session/error:', e.message)
   }
   res.json({ ok: true })
+})
+
+// ── Challenge year (in-game, uses Claude web_search) ──────────
+app.post('/api/challenge-year', async (req, res) => {
+  const { songId, artist, title, currentYear } = req.body
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return res.status(500).json({ error: 'Anthropic API key not configured' })
+  if (!songId || !artist || !title || !currentYear) {
+    return res.status(400).json({ error: 'Missing required fields' })
+  }
+
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'web-search-2025-03-05',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 400,
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+        messages: [{
+          role: 'user',
+          content: `Search the web for the original release year of the song "${title}" by ${artist}. The game currently shows ${currentYear}. Find the actual first release year (not a remaster, compilation, or re-release). Reply in this exact format: YEAR: [4-digit year] | REASON: [one sentence citing your source]`,
+        }],
+      }),
+    })
+
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}))
+      return res.status(500).json({ error: err.error?.message || `API error ${r.status}` })
+    }
+
+    const data = await r.json()
+    const textBlock = data.content?.find(b => b.type === 'text')
+    if (!textBlock) return res.json({ year: currentYear, changed: false, message: 'No answer from search' })
+
+    const yearMatch = textBlock.text.match(/YEAR:\s*(\d{4})/)
+    const reasonMatch = textBlock.text.match(/REASON:\s*(.+)/)
+    if (!yearMatch) return res.json({ year: currentYear, changed: false, message: textBlock.text.slice(0, 200) })
+
+    const correctYear = parseInt(yearMatch[1])
+    const message = reasonMatch ? reasonMatch[1].trim() : textBlock.text.slice(0, 200)
+    const changed = correctYear !== currentYear
+
+    if (changed && pool) {
+      await pool.query(
+        `UPDATE songs SET year = $1, year_original = COALESCE(year_original, $2) WHERE source_id = $3`,
+        [correctYear, currentYear, songId]
+      )
+      console.log(`[challenge] ${artist} — ${title}: ${currentYear} → ${correctYear} (${message})`)
+    } else {
+      console.log(`[challenge] ${artist} — ${title}: year ${currentYear} confirmed correct`)
+    }
+
+    res.json({ year: correctYear, changed, message })
+  } catch (e) {
+    console.error('challenge-year:', e.message)
+    res.status(500).json({ error: e.message })
+  }
 })
 
 // ── SPA fallback ───────────────────────────────────────────────
