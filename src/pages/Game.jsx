@@ -1331,7 +1331,7 @@ function ChallengeBar({ count, loading, result, onChallenge }) {
 
   return (
     <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
-      {result && (
+      {result && !loading && (
         <div style={{
           padding: '0.5rem 1.25rem',
           borderBottom: '1px solid var(--border)',
@@ -1349,6 +1349,16 @@ function ChallengeBar({ count, loading, result, onChallenge }) {
           </span>
         </div>
       )}
+
+      {/* Scan line — only visible while loading */}
+      <div style={{ height: 2, background: 'var(--border)', overflow: 'hidden', opacity: loading ? 1 : 0, transition: 'opacity 0.2s' }}>
+        <div style={{
+          height: '100%', width: '25%',
+          background: 'var(--accent)',
+          animation: loading ? 'scan 1.1s ease-in-out infinite' : 'none',
+        }} />
+      </div>
+
       <button
         onClick={onChallenge}
         disabled={disabled}
@@ -1357,17 +1367,21 @@ function ChallengeBar({ count, loading, result, onChallenge }) {
           background: 'transparent', border: 'none',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           cursor: disabled ? 'default' : 'pointer',
-          opacity: disabled ? 0.4 : 1,
+          opacity: remaining === 0 ? 0.4 : 1,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.62rem' }}>?</span>
-          <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: '0.82rem', color: 'var(--ink2)' }}>
-            {loading ? 'Searching…' : 'Challenge the year'}
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.62rem', color: loading ? 'var(--accent)' : 'var(--ink)' }}>?</span>
+          <span style={{
+            fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: '0.82rem',
+            color: loading ? 'var(--accent)' : 'var(--ink2)',
+            animation: loading ? 'pulse 1.4s ease-in-out infinite' : 'none',
+          }}>
+            {loading ? 'Searching the web…' : 'Challenge the year'}
           </span>
         </div>
         <span className="mono" style={{ fontSize: '0.55rem', color: 'var(--muted)' }}>
-          {loading ? '···' : `${remaining} LEFT`}
+          {loading ? '' : `${remaining} LEFT`}
         </span>
       </button>
     </div>
