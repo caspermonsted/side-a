@@ -204,9 +204,23 @@ export default function Game({ settings, onQuit, onScores }) {
   const currentTeam = teams[teamIdx]
 
   async function handlePlay() {
-    // Safety: ran out of tracks (top-up failed or exhausted)
     if (!currentTrack) {
-      setPhase(isSolo ? PHASE.GAMEOVER : PHASE.DONE)
+      if (isSolo) { setPhase(PHASE.GAMEOVER); return }
+      // Team mode: recycle the seen-list and fetch a fresh batch rather than ending the game
+      if (!fetchingMore.current) {
+        seenIds.current.clear()
+        topupFails.current = 0
+        fetchingMore.current = true
+        fetchTracks({ ...settings, count: 120, exclude: seenIds.current, enrichPreviews: false })
+          .then(more => {
+            if (more.length > 0) {
+              more.forEach(t => seenIds.current.add(t.id))
+              setTracks(prev => [...prev, ...more])
+            }
+          })
+          .catch(() => {})
+          .finally(() => { fetchingMore.current = false })
+      }
       return
     }
     try {
@@ -995,11 +1009,18 @@ export default function Game({ settings, onQuit, onScores }) {
       <div style={{ marginTop: 'auto', borderTop: '3px solid var(--ink)' }}>
         <div style={{ maxWidth: 480, margin: '0 auto' }}>
         {phase === PHASE.READY && (
-          <button onClick={handlePlay} className="btn-reveal">
-            <div><div className="mono" style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.6)', marginBottom: 2 }}>READY?</div>
-            <span>Play the song</span></div>
-            <span>→</span>
-          </button>
+          currentTrack ? (
+            <button onClick={handlePlay} className="btn-reveal">
+              <div><div className="mono" style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.6)', marginBottom: 2 }}>READY?</div>
+              <span>Play the song</span></div>
+              <span>→</span>
+            </button>
+          ) : (
+            <div style={{ padding: '0.9rem 1.25rem', background: 'var(--surface)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="mono" style={{ fontSize: '0.62rem', color: 'var(--muted)' }}>PLEASE WAIT</span>
+              <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: '0.9rem', color: 'var(--ink2)' }}>Loading more songs…</span>
+            </div>
+          )
         )}
         {phase === PHASE.LISTENING && (
           <div style={{ padding: '0.85rem 1.25rem', background: 'var(--surface)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
