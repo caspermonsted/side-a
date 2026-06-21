@@ -50,7 +50,7 @@ export default function Setup({ onStart, onBack }) {
         letterSpacing: '0.18em', color: 'var(--label)',
       }}>
         <button className="btn-ghost" onClick={onBack} style={{ fontSize: '0.58rem', padding: '0.25rem 0.5rem' }}>← BACK</button>
-        <span>SIDE A · PARTY</span>
+        <span>SIDE B · PARTY</span>
         <span>33⅓ RPM</span>
       </div>
 

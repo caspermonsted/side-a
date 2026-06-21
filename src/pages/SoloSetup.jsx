@@ -29,7 +29,7 @@ export default function SoloSetup({ onStart, onBack, onScores }) {
         fontFamily: "'JetBrains Mono', monospace", fontSize: '0.62rem', letterSpacing: '0.18em', color: 'var(--label)',
       }}>
         <button className="btn-ghost" onClick={onBack} style={{ fontSize: '0.58rem', padding: '0.25rem 0.5rem' }}>← BACK</button>
-        <span>SIDE B · SOLO</span>
+        <span>SIDE A · SOLO</span>
         <button className="btn-ghost" onClick={onScores} style={{ fontSize: '0.58rem', padding: '0.25rem 0.5rem' }}>◆ SCORES</button>
       </div>
 

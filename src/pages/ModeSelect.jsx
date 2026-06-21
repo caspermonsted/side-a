@@ -10,7 +10,9 @@ export default function ModeSelect({ onParty, onSolo, onScores }) {
       }}>
         <span>SIDE A</span>
         <span style={{ fontSize: '0.9rem' }}>◐</span>
-        <span>33⅓ RPM</span>
+        <button onClick={onScores} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.62rem', letterSpacing: '0.18em', color: 'var(--label)', padding: 0 }}>
+          ◆ SCORES
+        </button>
       </div>
 
       {/* Heading */}
@@ -27,9 +29,9 @@ export default function ModeSelect({ onParty, onSolo, onScores }) {
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '1.25rem', gap: '0.75rem' }}>
 
-        {/* SIDE A — Party */}
+        {/* SIDE A — Solo */}
         <button
-          onClick={onParty}
+          onClick={onSolo}
           style={{
             background: 'var(--ink)', color: 'var(--bg)',
             border: 'none', padding: '1.5rem 1.25rem',
@@ -56,9 +58,14 @@ export default function ModeSelect({ onParty, onSolo, onScores }) {
               fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontWeight: 900,
               fontSize: 'clamp(3rem, 14vw, 4rem)', lineHeight: 0.9, letterSpacing: '-0.03em',
               marginBottom: '0.75rem',
-            }}>Party</div>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.58rem', letterSpacing: '0.1em', color: 'rgba(196,200,180,0.7)' }}>
-              2–4 TEAMS · RACE TO WIN
+            }}>Solo</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', gap: '0.2rem' }}>
+                {[0,1,2].map(i => <span key={i} style={{ fontSize: '0.85rem', color: 'var(--accent)' }}>♥</span>)}
+              </div>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.58rem', letterSpacing: '0.1em', color: 'rgba(196,200,180,0.7)' }}>
+                3 HEARTS · BEAT THE BOARD
+              </span>
             </div>
           </div>
           <span style={{ fontSize: '1.5rem', flexShrink: 0, zIndex: 1 }}>→</span>
@@ -71,9 +78,9 @@ export default function ModeSelect({ onParty, onSolo, onScores }) {
           <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
         </div>
 
-        {/* SIDE B — Solo */}
+        {/* SIDE B — Party */}
         <button
-          onClick={onSolo}
+          onClick={onParty}
           style={{
             background: 'var(--surface)', color: 'var(--ink)',
             border: '1px solid var(--border)', padding: '1.5rem 1.25rem',
@@ -100,31 +107,12 @@ export default function ModeSelect({ onParty, onSolo, onScores }) {
               fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontWeight: 900,
               fontSize: 'clamp(3rem, 14vw, 4rem)', lineHeight: 0.9, letterSpacing: '-0.03em',
               marginBottom: '0.75rem', color: 'var(--ink)',
-            }}>Solo</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <div style={{ display: 'flex', gap: '0.2rem' }}>
-                {[0,1,2].map(i => <span key={i} style={{ fontSize: '0.85rem', color: 'var(--accent)' }}>♥</span>)}
-              </div>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.58rem', letterSpacing: '0.1em', color: 'var(--muted)' }}>
-                3 HEARTS · LEADERBOARD
-              </span>
+            }}>Party</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.58rem', letterSpacing: '0.1em', color: 'var(--muted)' }}>
+              2–4 TEAMS · RACE TO WIN
             </div>
           </div>
           <span style={{ fontSize: '1.5rem', flexShrink: 0, zIndex: 1 }}>→</span>
-        </button>
-
-        {/* High scores link */}
-        <button
-          onClick={onScores}
-          style={{
-            background: 'transparent', border: 'none', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-            padding: '0.5rem',
-          }}
-        >
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.62rem', letterSpacing: '0.15em', color: 'var(--muted)' }}>
-            ◆ HIGH SCORES
-          </span>
         </button>
 
       </div>
