@@ -47,6 +47,7 @@ async function initDb() {
     `)
     // Add error column to existing tables that predate it
     await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS error TEXT`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS play_presses INTEGER`)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS danish_tracks (
         id          SERIAL PRIMARY KEY,
@@ -489,13 +490,13 @@ app.post('/api/session/start', async (req, res) => {
 app.post('/api/session/end', async (req, res) => {
   if (!pool) return res.json({ ok: true })
   try {
-    const { id, completed, rounds_played, duration_seconds, final_scores, songs } = req.body
+    const { id, completed, rounds_played, duration_seconds, final_scores, songs, play_presses } = req.body
     await pool.query(
       `UPDATE sessions
        SET ended_at=NOW(), completed=$1, rounds_played=$2, duration_seconds=$3,
-           final_scores=$4, songs=$5
-       WHERE id=$6`,
-      [completed, rounds_played, duration_seconds, JSON.stringify(final_scores), JSON.stringify(songs), id]
+           final_scores=$4, songs=$5, play_presses=$6
+       WHERE id=$7`,
+      [completed, rounds_played, duration_seconds, JSON.stringify(final_scores), JSON.stringify(songs), play_presses ?? null, id]
     )
     res.json({ ok: true })
   } catch (e) {

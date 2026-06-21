@@ -111,6 +111,7 @@ export default function Game({ settings, onQuit, onScores }) {
   const fetchingMore = useRef(false)
   const topupFails = useRef(0)
   const playedTracksRef = useRef([])
+  const playPresses = useRef(0)
 
 
   const songLen = 180
@@ -232,6 +233,7 @@ export default function Game({ settings, onQuit, onScores }) {
   const currentTeam = teams[teamIdx]
 
   async function handlePlay() {
+    playPresses.current++
     if (!currentTrack) {
       if (isSolo) { setPhase(PHASE.GAMEOVER); return }
       // Team mode: recycle the seen-list and fetch a fresh batch rather than ending the game
@@ -380,6 +382,7 @@ export default function Game({ settings, onQuit, onScores }) {
           rounds_played: trackIdx + 1,
           final_scores: teams.map(t => ({ name: t.name, score: t.score })),
           songs: playedTracksRef.current,
+          play_presses: playPresses.current,
         })
       }
       setPhase(PHASE.GAMEOVER)
@@ -421,6 +424,7 @@ export default function Game({ settings, onQuit, onScores }) {
           rounds_played: trackIdx + 1,
           final_scores: teams.map(t => ({ name: t.name, score: t.score })),
           songs: playedTracksRef.current,
+          play_presses: playPresses.current,
         })
       }
       setFinalRoundTeams(0)
@@ -489,6 +493,7 @@ export default function Game({ settings, onQuit, onScores }) {
         rounds_played: trackIdx,
         final_scores: teams.map(t => ({ name: t.name, score: t.score })),
         songs: playedTracksRef.current,
+        play_presses: playPresses.current,
       })
     }
     onQuit()
