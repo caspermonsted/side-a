@@ -127,30 +127,45 @@ export default function Game({ settings, onQuit, onScores }) {
     return () => timers.forEach(clearTimeout)
   }, [phase])
 
-  // Silently top up the track list when running low.
-  // Tracks without a previewUrl are auto-skipped; the lazy prefetch fills them in during LISTENING.
+  // If a track has no previewUrl when it reaches READY, try fetching it once before skipping.
+  // This breaks the cascade: without the async fetch, a miss at track N causes N+1, N+2, …
+  // to all auto-skip synchronously (none entered LISTENING so none were prefetched).
+  // With it, each miss costs one Deezer round-trip — the cascade becomes a slow crawl.
   useEffect(() => {
     if (phase !== PHASE.READY || settings.demo || !currentTrack) return
-    if (!currentTrack.previewUrl) {
-      setTrackIdx(t => t + 1)
-    }
+    if (currentTrack.previewUrl) return
+    let cancelled = false
+    fetchPreviewUrl(currentTrack.title, currentTrack.artist).then(url => {
+      if (cancelled) return
+      if (url) {
+        setTracks(prev => prev.map((t, i) => i === trackIdx ? { ...t, previewUrl: url } : t))
+      } else {
+        setTrackIdx(t => t + 1)
+      }
+    }).catch(() => { if (!cancelled) setTrackIdx(t => t + 1) })
+    return () => { cancelled = true }
   }, [phase, trackIdx])
 
-  // While a song is playing, prefetch the next track's Deezer URL in the background.
-  // This keeps URLs fresh (avoids CDN expiry in long games) and gives topup tracks
-  // a URL without the rate-limit burst of enriching them all at once.
+  // While a song is playing, prefetch the next 3 tracks' Deezer URLs in the background.
+  // Lookahead of 3 prevents the cascade auto-skip bug: if a track misses Deezer and
+  // auto-skips (never entering LISTENING), the next track would also have no URL and
+  // cascade-skip through the entire pool. With 3-track lookahead, a miss only skips 1
+  // track before the buffer catches up. (3 consecutive misses at 2.9% rate = 0.0024%.)
   useEffect(() => {
     if (phase !== PHASE.LISTENING || settings.demo) return
-    const next = tracks[trackIdx + 1]
-    if (!next) return
-    fetchPreviewUrl(next.title, next.artist).then(url => {
-      if (url) setTracks(prev => prev.map((t, i) => i === trackIdx + 1 ? { ...t, previewUrl: url } : t))
-      fetch(`/api/songs/${next.id}/deezer-status`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ok: !!url }),
-      }).catch(() => {})
-    })
+    for (let ahead = 1; ahead <= 3; ahead++) {
+      const next = tracks[trackIdx + ahead]
+      if (!next || next.previewUrl) continue
+      const idx = trackIdx + ahead
+      fetchPreviewUrl(next.title, next.artist).then(url => {
+        if (url) setTracks(prev => prev.map((t, i) => i === idx ? { ...t, previewUrl: url } : t))
+        fetch(`/api/songs/${next.id}/deezer-status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ok: !!url }),
+        }).catch(() => {})
+      })
+    }
   }, [phase, trackIdx])
 
   // Trigger early (> 20 remaining), fetch generously (60), and back off after
