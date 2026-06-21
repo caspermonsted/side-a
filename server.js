@@ -48,6 +48,7 @@ async function initDb() {
     // Add error column to existing tables that predate it
     await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS error TEXT`)
     await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS play_presses INTEGER`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS client_id TEXT`)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS danish_tracks (
         id          SERIAL PRIMARY KEY,
@@ -473,13 +474,13 @@ app.get('/api/songs', async (req, res) => {
 app.post('/api/session/start', async (req, res) => {
   if (!pool) return res.json({ id: null })
   try {
-    const { platform, num_teams, difficulty, decades, genre, target, tracks_loaded } = req.body
+    const { platform, num_teams, difficulty, decades, genre, target, tracks_loaded, client_id } = req.body
     const { country_code, city } = await getGeo(req)
     const result = await pool.query(
       `INSERT INTO sessions
-         (platform, country_code, city, num_teams, difficulty, decades, genre, target, tracks_loaded)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-      [platform, country_code, city, num_teams, difficulty, decades, genre, target, tracks_loaded]
+         (platform, country_code, city, num_teams, difficulty, decades, genre, target, tracks_loaded, client_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+      [platform, country_code, city, num_teams, difficulty, decades, genre, target, tracks_loaded, client_id ?? null]
     )
     res.json({ id: result.rows[0].id })
   } catch (e) {
