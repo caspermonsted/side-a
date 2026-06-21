@@ -457,6 +457,7 @@ app.get('/api/songs', async (req, res) => {
          )
          AND excluded = FALSE
          AND year IS NOT NULL
+         AND deezer_ok IS DISTINCT FROM FALSE
        ORDER BY RANDOM()
        LIMIT $6`,
       [decades, score - range, score + range, dkScore - dkRange, dkScore + dkRange, count]

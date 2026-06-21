@@ -1,6 +1,9 @@
 async function deezerPreview(title, artist) {
   try {
-    const res = await fetch(`/api/preview?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`)
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 8000)
+    const res = await fetch(`/api/preview?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`, { signal: controller.signal })
+    clearTimeout(timer)
     const data = await res.json()
     return data.url ?? null
   } catch {
