@@ -136,7 +136,7 @@ export default function Game({ settings, onQuit, onScores }) {
     if (!currentTrack.previewUrl) {
       setTrackIdx(t => t + 1)
     }
-  }, [phase, currentTrack?.id])
+  }, [phase, trackIdx])
 
   // Trigger early (> 20 remaining), fetch generously (60), and back off after
   // repeated failures so we don't hammer the API with doomed rate-limit retries.
