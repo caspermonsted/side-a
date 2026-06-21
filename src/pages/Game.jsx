@@ -99,6 +99,9 @@ export default function Game({ settings, onQuit, onScores }) {
   const [challengeCount, setChallengeCount] = useState(0)
   const [challengeLoading, setChallengeLoading] = useState(false)
   const [challengeResult, setChallengeResult] = useState(null)
+  const [finalRoundTeams, setFinalRoundTeams] = useState(0)
+  const [suddenDeathQueue, setSuddenDeathQueue] = useState([])
+  const [nextTeamIdx, setNextTeamIdx] = useState(null)
 
   // drag state
   const [drag, setDrag] = useState(null)
@@ -382,9 +385,16 @@ export default function Game({ settings, onQuit, onScores }) {
     setScoreSubmitted(true)
   }
 
-  function handleNext() {
-    const gameOver = teams.some(t => t.score >= TARGET) || (isSolo && trackIdx + 1 >= tracks.length)
-    if (gameOver) {
+  function endOrContinue() {
+    const topScore = Math.max(...teams.map(t => t.score))
+    const tiedIndices = teams.map((_, i) => i).filter(i => teams[i].score === topScore)
+    if (tiedIndices.length > 1) {
+      // Tie → sudden death: each tied team plays one full turn, then re-check
+      setSuddenDeathQueue(tiedIndices)
+      setNextTeamIdx(tiedIndices[0])
+      setRoundCount(r => r + 1)
+      setPhase(PHASE.HANDOFF)
+    } else {
       log('game_end', {
         platform,
         rounds: trackIdx + 1,
@@ -398,14 +408,62 @@ export default function Game({ settings, onQuit, onScores }) {
           songs: playedTracksRef.current,
         })
       }
+      setFinalRoundTeams(0)
+      setSuddenDeathQueue([])
       setPhase(PHASE.DONE)
-    } else {
-      setRoundCount(r => r + 1)
-      if (teams.length === 1) {
-        handleBeginTurn()
+    }
+  }
+
+  function handleNext() {
+    const isFinalRound = finalRoundTeams > 0
+    const isSuddenDeath = suddenDeathQueue.length > 0
+
+    if (isSuddenDeath) {
+      const newQueue = suddenDeathQueue.slice(1)
+      if (newQueue.length === 0) {
+        setSuddenDeathQueue([])
+        endOrContinue()
       } else {
+        setSuddenDeathQueue(newQueue)
+        setNextTeamIdx(newQueue[0])
+        setRoundCount(r => r + 1)
         setPhase(PHASE.HANDOFF)
       }
+      return
+    }
+
+    if (isFinalRound) {
+      const remaining = finalRoundTeams - 1
+      if (remaining <= 0) {
+        setFinalRoundTeams(0)
+        endOrContinue()
+      } else {
+        setFinalRoundTeams(remaining)
+        setRoundCount(r => r + 1)
+        setPhase(PHASE.HANDOFF)
+      }
+      return
+    }
+
+    // Normal play: check if someone just hit the target
+    const topScore = Math.max(...teams.map(t => t.score))
+    if (topScore >= TARGET) {
+      const teamsAfter = teams.length - 1 - teamIdx // teams that haven't played this cycle yet
+      if (teamsAfter > 0) {
+        setFinalRoundTeams(teamsAfter)
+        setRoundCount(r => r + 1)
+        setPhase(PHASE.HANDOFF)
+      } else {
+        endOrContinue()
+      }
+      return
+    }
+
+    setRoundCount(r => r + 1)
+    if (teams.length === 1) {
+      handleBeginTurn()
+    } else {
+      setPhase(PHASE.HANDOFF)
     }
   }
 
@@ -488,7 +546,12 @@ export default function Game({ settings, onQuit, onScores }) {
   function handleBeginTurn() {
     if (!settings.demo) pauseSong()
     setTrackIdx(t => t + 1)
-    setTeamIdx(t => (t + 1) % teams.length)
+    if (nextTeamIdx !== null) {
+      setTeamIdx(nextTeamIdx)
+      setNextTeamIdx(null)
+    } else {
+      setTeamIdx(t => (t + 1) % teams.length)
+    }
     setPlacedSlot(null)
     setYearCorrect(null)
     setIsCorrect(null)
@@ -547,15 +610,32 @@ export default function Game({ settings, onQuit, onScores }) {
 
   // ─── Handoff ─────────────────────────────────────────────────
   if (phase === PHASE.HANDOFF) {
-    const nextTeam = teams[(teamIdx + 1) % teams.length]
+    const isFinalRound = finalRoundTeams > 0
+    const isSuddenDeath = suddenDeathQueue.length > 0
+    const nextTeam = teams[nextTeamIdx ?? (teamIdx + 1) % teams.length]
     const prevTeam = teams[teamIdx]
     return (
       <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg)', maxWidth: 480, margin: '0 auto' }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
           <span className="mono" style={{ fontSize: '0.6rem' }}>SIDE A · ROUND {roundCount + 1}</span>
-          <span className="mono" style={{ fontSize: '0.6rem' }}>HANDOFF</span>
+          <span className="mono" style={{ fontSize: '0.6rem' }}>{isSuddenDeath ? 'SUDDEN DEATH' : isFinalRound ? 'FINAL ROUND' : 'HANDOFF'}</span>
         </div>
+
+        {/* Sudden death / final round banner */}
+        {isSuddenDeath && (
+          <div style={{ padding: '0.75rem 1.25rem', background: 'var(--accent)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+            <span className="mono" style={{ fontSize: '0.6rem', color: 'var(--bg)', letterSpacing: '0.15em' }}>⚡ SUDDEN DEATH</span>
+            <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: '0.8rem', color: 'var(--bg)', opacity: 0.9 }}>
+              It's a tie! Each team plays one more song — first to pull ahead wins. Still tied? Repeat.
+            </span>
+          </div>
+        )}
+        {isFinalRound && !isSuddenDeath && (
+          <div style={{ padding: '0.5rem 1.25rem', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+            <span className="mono" style={{ fontSize: '0.6rem', color: 'var(--accent)', letterSpacing: '0.15em' }}>FINAL ROUND — One more chance</span>
+          </div>
+        )}
 
         {/* Main */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem 1.5rem', gap: '0.5rem', textAlign: 'center' }}>
