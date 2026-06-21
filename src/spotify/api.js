@@ -51,12 +51,11 @@ export async function fetchTracks({ difficulty, count = 40, exclude = new Set(),
   shuffle(candidates)
 
   if (enrichPreviews) {
+    const limit = typeof enrichPreviews === 'number' ? enrichPreviews : candidates.length
     await Promise.all(
-      candidates.map(async t => { t.previewUrl = await deezerPreview(t.title, t.artist) })
+      candidates.slice(0, limit).map(async t => { t.previewUrl = await deezerPreview(t.title, t.artist) })
     )
-    candidates = candidates.filter(t => t.previewUrl)
-
-    if (candidates.length === 0) {
+    if (!candidates.slice(0, limit).some(t => t.previewUrl)) {
       throw new Error('No playable songs found. Try a different difficulty.')
     }
   }

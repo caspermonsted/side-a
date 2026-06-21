@@ -128,9 +128,7 @@ export default function Game({ settings, onQuit, onScores }) {
   }, [phase])
 
   // Silently top up the track list when running low.
-  // Auto-skip topup tracks that have no Deezer preview — they can't be played.
-  // Initial load uses enrichPreviews:true so initial tracks always have a URL;
-  // topup uses enrichPreviews:false to avoid rate limits, so we skip them here.
+  // Tracks without a previewUrl are auto-skipped; the lazy prefetch fills them in during LISTENING.
   useEffect(() => {
     if (phase !== PHASE.READY || settings.demo || !currentTrack) return
     if (!currentTrack.previewUrl) {
@@ -186,7 +184,7 @@ export default function Game({ settings, onQuit, onScores }) {
         if (settings.demo) {
           t = shuffled(DEMO_TRACKS)
         } else {
-          t = await fetchTracks({ ...settings, count: 60, enrichPreviews: true })
+          t = await fetchTracks({ ...settings, count: 60, enrichPreviews: 5 })
           if (t.length === 0) throw new Error('No songs found. Try selecting more decades.')
           t.forEach(track => seenIds.current.add(track.id))
           log('game_start', {
