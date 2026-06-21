@@ -176,7 +176,8 @@ app.get('/api/preview', async (req, res) => {
   const { title, artist } = req.query
   if (!title || !artist) return res.json({ url: null })
   try {
-    const q = encodeURIComponent(`${artist} ${title}`)
+    const cleanTitle = title.replace(/\s*[-–(]\s*(?:20\d{2}\s+)?remaster(?:ed)?(?:\s+20\d{2})?\s*\)?/gi, '').trim()
+    const q = encodeURIComponent(`${artist} ${cleanTitle}`)
     const r = await fetch(`https://api.deezer.com/search?q=${q}&limit=5`)
     const data = await r.json()
     const url = data.data?.find(d => d.preview)?.preview ?? null
