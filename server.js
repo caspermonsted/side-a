@@ -81,6 +81,7 @@ async function initDb() {
     `)
     await pool.query(`ALTER TABLE songs ADD COLUMN IF NOT EXISTS album_title TEXT`)
     await pool.query(`ALTER TABLE songs ADD COLUMN IF NOT EXISTS year_original INTEGER`)
+    await pool.query(`ALTER TABLE songs ADD COLUMN IF NOT EXISTS deezer_ok BOOLEAN`)
     console.log('DB ready')
   } catch (e) {
     console.error('DB init error:', e.message)
@@ -184,6 +185,19 @@ app.get('/api/preview', async (req, res) => {
     res.json({ url })
   } catch {
     res.json({ url: null })
+  }
+})
+
+// ── Deezer status reporting ────────────────────────────────────
+app.post('/api/songs/:id/deezer-status', async (req, res) => {
+  if (!pool) return res.json({ ok: false })
+  const { ok } = req.body
+  if (typeof ok !== 'boolean') return res.status(400).json({ error: 'ok must be boolean' })
+  try {
+    await pool.query(`UPDATE songs SET deezer_ok = $1 WHERE id = $2`, [ok, req.params.id])
+    res.json({ ok: true })
+  } catch {
+    res.json({ ok: false })
   }
 })
 

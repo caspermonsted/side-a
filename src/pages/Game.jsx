@@ -145,6 +145,11 @@ export default function Game({ settings, onQuit, onScores }) {
     if (!next) return
     fetchPreviewUrl(next.title, next.artist).then(url => {
       if (url) setTracks(prev => prev.map((t, i) => i === trackIdx + 1 ? { ...t, previewUrl: url } : t))
+      fetch(`/api/songs/${next.id}/deezer-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ok: !!url }),
+      }).catch(() => {})
     })
   }, [phase, trackIdx])
 
