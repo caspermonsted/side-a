@@ -490,19 +490,41 @@ app.post('/api/session/start', async (req, res) => {
 app.post('/api/session/end', async (req, res) => {
   if (!pool) return res.json({ ok: true })
   try {
-    const { id, completed, rounds_played, duration_seconds, final_scores, songs, play_presses } = req.body
+    const { id, completed, rounds_played, duration_seconds, final_scores } = req.body
     await pool.query(
       `UPDATE sessions
-       SET ended_at=NOW(), completed=$1, rounds_played=$2, duration_seconds=$3,
-           final_scores=$4, songs=$5, play_presses=$6
-       WHERE id=$7`,
-      [completed, rounds_played, duration_seconds, JSON.stringify(final_scores), JSON.stringify(songs), play_presses ?? null, id]
+       SET ended_at=NOW(), completed=$1, rounds_played=$2, duration_seconds=$3, final_scores=$4
+       WHERE id=$5`,
+      [completed, rounds_played, duration_seconds, JSON.stringify(final_scores), id]
     )
     res.json({ ok: true })
   } catch (e) {
     console.error('session/end:', e.message)
     res.json({ ok: true })
   }
+})
+
+// ── Session: live events ───────────────────────────────────────
+app.post('/api/session/:id/play', async (req, res) => {
+  if (!pool) return res.json({ ok: true })
+  try {
+    await pool.query(
+      `UPDATE sessions SET play_presses = COALESCE(play_presses, 0) + 1 WHERE id = $1`,
+      [req.params.id]
+    )
+    res.json({ ok: true })
+  } catch { res.json({ ok: true }) }
+})
+
+app.post('/api/session/:id/song', async (req, res) => {
+  if (!pool) return res.json({ ok: true })
+  try {
+    await pool.query(
+      `UPDATE sessions SET songs = COALESCE(songs, '[]'::jsonb) || jsonb_build_array($1::jsonb) WHERE id = $2`,
+      [JSON.stringify(req.body), req.params.id]
+    )
+    res.json({ ok: true })
+  } catch { res.json({ ok: true }) }
 })
 
 // ── Session: error ────────────────────────────────────────────

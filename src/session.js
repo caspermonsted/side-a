@@ -25,6 +25,20 @@ export function sessionError(message) {
   }).catch(() => {})
 }
 
+export function sessionPlayPressed() {
+  if (!sessionId) return
+  fetch(`/api/session/${sessionId}/play`, { method: 'POST' }).catch(() => {})
+}
+
+export function sessionSongPlayed(song) {
+  if (!sessionId) return
+  fetch(`/api/session/${sessionId}/song`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(song),
+  }).catch(() => {})
+}
+
 export async function sessionEnd(data) {
   if (!sessionId) return
   const duration_seconds = startTime ? Math.round((Date.now() - startTime) / 1000) : null

@@ -4,7 +4,7 @@ import { playSong, resumeSong, pauseSong } from '../spotify/player'
 
 const platform = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? 'ios' : 'desktop'
 import { log } from '../log'
-import { sessionStart, sessionEnd, sessionError } from '../session'
+import { sessionStart, sessionEnd, sessionError, sessionPlayPressed, sessionSongPlayed } from '../session'
 
 const DEMO_TRACKS = [
   { uri: 'd1', title: 'Bohemian Rhapsody', artist: 'Queen', year: 1975, albumArt: null },
@@ -110,7 +110,6 @@ export default function Game({ settings, onQuit, onScores }) {
   const seenIds = useRef(new Set())
   const fetchingMore = useRef(false)
   const topupFails = useRef(0)
-  const playedTracksRef = useRef([])
   const playPresses = useRef(0)
 
 
@@ -234,6 +233,7 @@ export default function Game({ settings, onQuit, onScores }) {
 
   async function handlePlay() {
     playPresses.current++
+    if (!settings.demo) sessionPlayPressed()
     if (!currentTrack) {
       if (isSolo) { setPhase(PHASE.GAMEOVER); return }
       // Team mode: recycle the seen-list and fetch a fresh batch rather than ending the game
@@ -334,10 +334,10 @@ export default function Game({ settings, onQuit, onScores }) {
     setYearCorrect(yc)
     setPlaying(false)
     if (!settings.demo) pauseSong()
-    if (!settings.demo) playedTracksRef.current.push({ id: currentTrack.id, year: currentTrack.year, title: currentTrack.title, artist: currentTrack.artist })
 
     // Wrong year in party mode — no point asking about artist, skip straight to JUDGED
     if (!isSolo && !yc) {
+      if (!settings.demo) sessionSongPlayed({ id: currentTrack.id, title: currentTrack.title, artist: currentTrack.artist, year: currentTrack.year, year_correct: false, artist_correct: false })
       setIsCorrect(false)
       setPhase(PHASE.JUDGED)
       return
@@ -360,6 +360,7 @@ export default function Game({ settings, onQuit, onScores }) {
 
   function handleJudge(guessedTitle) {
     const correct = yearCorrect && guessedTitle
+    if (!settings.demo) sessionSongPlayed({ id: currentTrack.id, title: currentTrack.title, artist: currentTrack.artist, year: currentTrack.year, year_correct: yearCorrect, artist_correct: !!guessedTitle })
     setIsCorrect(correct)
     if (correct) {
       const timeline = currentTeam.timeline
@@ -375,13 +376,13 @@ export default function Game({ settings, onQuit, onScores }) {
   const TARGET = settings.target ?? 10
 
   function handleSoloNext() {
+    if (!settings.demo) sessionSongPlayed({ id: currentTrack.id, title: currentTrack.title, artist: currentTrack.artist, year: currentTrack.year, year_correct: yearCorrect, artist_correct: null })
     if (lives <= 0 || trackIdx + 1 >= tracks.length) {
       if (!settings.demo) {
         sessionEnd({
           completed: true,
           rounds_played: trackIdx + 1,
           final_scores: teams.map(t => ({ name: t.name, score: t.score })),
-          songs: playedTracksRef.current,
           play_presses: playPresses.current,
         })
       }
@@ -423,8 +424,6 @@ export default function Game({ settings, onQuit, onScores }) {
           completed: true,
           rounds_played: trackIdx + 1,
           final_scores: teams.map(t => ({ name: t.name, score: t.score })),
-          songs: playedTracksRef.current,
-          play_presses: playPresses.current,
         })
       }
       setFinalRoundTeams(0)
@@ -492,8 +491,6 @@ export default function Game({ settings, onQuit, onScores }) {
         completed: false,
         rounds_played: trackIdx,
         final_scores: teams.map(t => ({ name: t.name, score: t.score })),
-        songs: playedTracksRef.current,
-        play_presses: playPresses.current,
       })
     }
     onQuit()
