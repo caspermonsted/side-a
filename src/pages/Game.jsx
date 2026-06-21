@@ -125,6 +125,16 @@ export default function Game({ settings, onQuit, onScores }) {
   }, [phase])
 
   // Silently top up the track list when running low.
+  // Auto-skip topup tracks that have no Deezer preview — they can't be played.
+  // Initial load uses enrichPreviews:true so initial tracks always have a URL;
+  // topup uses enrichPreviews:false to avoid rate limits, so we skip them here.
+  useEffect(() => {
+    if (phase !== PHASE.READY || settings.demo || !currentTrack) return
+    if (!currentTrack.previewUrl) {
+      setTrackIdx(t => t + 1)
+    }
+  }, [phase, currentTrack?.id])
+
   // Trigger early (> 20 remaining), fetch generously (60), and back off after
   // repeated failures so we don't hammer the API with doomed rate-limit retries.
   useEffect(() => {
@@ -138,7 +148,7 @@ export default function Game({ settings, onQuit, onScores }) {
     }
     fetchingMore.current = true
     // Don't enrichPreviews in top-up — Deezer rate limits cause empty results for Danish songs.
-    // Songs without previews are silently skipped by handlePlay's no-preview catch.
+    // Tracks without previews are auto-skipped by the useEffect above when they reach READY.
     fetchTracks({ ...settings, count: 120, exclude: seenIds.current, enrichPreviews: false })
       .then(more => {
         if (more.length > 0) {
