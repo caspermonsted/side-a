@@ -206,10 +206,11 @@ app.post('/api/songs/:id/deezer-status', async (req, res) => {
 app.get('/api/scores', async (req, res) => {
   if (!pool) return res.json([])
   try {
-    const { difficulty = 'medium' } = req.query
+    const { difficulty = 'medium', period = '30d' } = req.query
+    const timeClause = period === 'all' ? '' : `AND created_at > NOW() - INTERVAL '30 days'`
     const result = await pool.query(
       `SELECT id, name, score, created_at FROM high_scores
-       WHERE difficulty=$1 ORDER BY score DESC, created_at ASC LIMIT 10`,
+       WHERE difficulty=$1 ${timeClause} ORDER BY score DESC, created_at ASC LIMIT 10`,
       [difficulty]
     )
     res.json(result.rows)

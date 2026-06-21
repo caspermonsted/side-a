@@ -860,7 +860,7 @@ export default function Game({ settings, onQuit, onScores }) {
     return (
       <div style={{ minHeight: '100%', background: 'var(--bg)', maxWidth: 480, margin: '0 auto', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
-          <span className="mono" style={{ fontSize: '0.62rem' }}>SIDE B · SOLO</span>
+          <span className="mono" style={{ fontSize: '0.62rem' }}>SIDE A · SOLO</span>
           <span className="mono" style={{ fontSize: '0.62rem' }}>— GAME OVER —</span>
         </div>
 
