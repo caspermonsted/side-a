@@ -112,6 +112,14 @@ export default function Game({ settings, onQuit, onScores }) {
   const topupFails = useRef(0)
   const playPresses = useRef(0)
 
+  const [personalBest] = useState(() => {
+    if (!settings.solo) return null
+    const v = localStorage.getItem(`solo_best_${settings.difficulty}`)
+    return v !== null ? parseInt(v, 10) : null
+  })
+  const alreadyBeatBest = useRef(false)
+  const [encouragementMsg, setEncouragementMsg] = useState(null)
+
 
   const songLen = 180
   useEffect(() => {
@@ -370,9 +378,18 @@ export default function Game({ settings, onQuit, onScores }) {
       if (yc) {
         const newCard = { title: currentTrack.title, artist: currentTrack.artist, year: currentTrack.year, albumArt: currentTrack.albumArt }
         const newTimeline = [...timeline.slice(0, placedSlot), newCard, ...timeline.slice(placedSlot)]
+        const newScore = teams[0].score + 1
         setTeams(prev => prev.map((t, i) =>
-          i === teamIdx ? { ...t, timeline: newTimeline, score: t.score + 1 } : t
+          i === teamIdx ? { ...t, timeline: newTimeline, score: newScore } : t
         ))
+        if (personalBest !== null) {
+          if (newScore === personalBest - 1 && personalBest >= 2) {
+            setEncouragementMsg(`One more to beat your best of ${personalBest} on ${settings.difficulty}`)
+          } else if (!alreadyBeatBest.current && newScore > personalBest) {
+            setEncouragementMsg(`New personal best on ${settings.difficulty}!`)
+            alreadyBeatBest.current = true
+          }
+        }
       } else {
         setLives(l => l - 1)
       }
@@ -399,6 +416,10 @@ export default function Game({ settings, onQuit, onScores }) {
   function handleSoloNext() {
     if (!settings.demo) sessionSongPlayed({ id: currentTrack.id, title: currentTrack.title, artist: currentTrack.artist, year: currentTrack.year, year_correct: yearCorrect, artist_correct: null })
     if (lives <= 0 || trackIdx + 1 >= tracks.length) {
+      const finalScore = teams[0].score
+      if (personalBest === null || finalScore > personalBest) {
+        localStorage.setItem(`solo_best_${settings.difficulty}`, finalScore)
+      }
       if (!settings.demo) {
         sessionEnd({
           completed: true,
@@ -596,6 +617,7 @@ export default function Game({ settings, onQuit, onScores }) {
     setProgress(0)
     setPlaying(false)
     setChallengeResult(null)
+    setEncouragementMsg(null)
     setPhase(PHASE.READY)
   }
 
@@ -1063,7 +1085,7 @@ export default function Game({ settings, onQuit, onScores }) {
             : <><em>Wrong year.</em> Did they guess the artist &amp; title anyway?</>
           )}
           {phase === PHASE.REVEALED && isSolo && (yearCorrect
-            ? <><em>Correct!</em> {teams[0].score} cards placed.</>
+            ? <><em>Correct!</em> {teams[0].score} cards placed.{encouragementMsg && <><br /><span style={{ fontSize: '0.78rem', color: 'var(--accent)', fontStyle: 'normal', fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.04em' }}>{encouragementMsg.toUpperCase()}</span></>}</>
             : <><em>Wrong year.</em> {lives > 0 ? `${lives} heart${lives === 1 ? '' : 's'} remaining.` : 'No hearts left.'}</>
           )}
           {phase === PHASE.JUDGED && isCorrect && <><em>+1 card.</em> Correct placement and correct guess!</>}
