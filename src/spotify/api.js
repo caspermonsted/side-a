@@ -8,6 +8,10 @@ async function deezerPreview(title, artist) {
   }
 }
 
+export async function fetchPreviewUrl(title, artist) {
+  return deezerPreview(title, artist)
+}
+
 // difficulty → score ranges for DB query (score 1=famous, 100=obscure)
 // Danish songs use separate thresholds calibrated to Danish audience recognition
 // (percentile-matched so each bucket holds ~56/20/24% of songs, same as international)

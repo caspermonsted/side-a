@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { fetchTracks } from '../spotify/api'
+import { fetchTracks, fetchPreviewUrl } from '../spotify/api'
 import { playSong, resumeSong, pauseSong } from '../spotify/player'
 
 const platform = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? 'ios' : 'desktop'
@@ -136,6 +136,18 @@ export default function Game({ settings, onQuit, onScores }) {
     if (!currentTrack.previewUrl) {
       setTrackIdx(t => t + 1)
     }
+  }, [phase, trackIdx])
+
+  // While a song is playing, prefetch the next track's Deezer URL in the background.
+  // This keeps URLs fresh (avoids CDN expiry in long games) and gives topup tracks
+  // a URL without the rate-limit burst of enriching them all at once.
+  useEffect(() => {
+    if (phase !== PHASE.LISTENING || settings.demo) return
+    const next = tracks[trackIdx + 1]
+    if (!next) return
+    fetchPreviewUrl(next.title, next.artist).then(url => {
+      if (url) setTracks(prev => prev.map((t, i) => i === trackIdx + 1 ? { ...t, previewUrl: url } : t))
+    })
   }, [phase, trackIdx])
 
   // Trigger early (> 20 remaining), fetch generously (60), and back off after
