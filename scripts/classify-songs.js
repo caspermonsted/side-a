@@ -113,10 +113,10 @@ async function main() {
 
   const { rows: songs } = await pool.query(
     force
-      ? `SELECT id, title, artist, year, is_danish FROM songs ORDER BY decade, id`
+      ? `SELECT id, title, artist, year, is_danish FROM songs WHERE source_id NOT LIKE 'deezer:%' ORDER BY decade, id`
       : forceDanish
-      ? `SELECT id, title, artist, year, is_danish FROM songs WHERE is_danish = TRUE ORDER BY decade, id`
-      : `SELECT id, title, artist, year, is_danish FROM songs WHERE difficulty_score IS NULL ORDER BY decade, id`
+      ? `SELECT id, title, artist, year, is_danish FROM songs WHERE is_danish = TRUE AND source_id NOT LIKE 'deezer:%' ORDER BY decade, id`
+      : `SELECT id, title, artist, year, is_danish FROM songs WHERE difficulty_score IS NULL AND source_id NOT LIKE 'deezer:%' ORDER BY decade, id`
   )
 
   console.log(`Songs to classify: ${songs.length}`)

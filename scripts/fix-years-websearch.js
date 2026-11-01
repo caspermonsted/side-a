@@ -70,7 +70,7 @@ async function askWebSearch(artist, title, currentYear) {
 // Load all Danish songs
 const { rows: songs } = await pool.query(`
   SELECT id, source_id, title, artist, year FROM songs
-  WHERE is_danish = true AND excluded = false
+  WHERE is_danish = true AND excluded = false AND source_id NOT LIKE 'deezer:%'
   ORDER BY id
 `)
 console.log(`Loaded ${songs.length} Danish songs. Running Haiku scan to find candidates...\n`)

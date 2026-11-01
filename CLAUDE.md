@@ -25,13 +25,16 @@ Credentials are in `.env` (gitignored):
 src/
   pages/Game.jsx         # Main game component — all game logic lives here
   pages/Setup.jsx        # Team/party game setup
+  pages/HomeTurfSetup.jsx # Home Turf setup — each player searches/picks an artist
   pages/SoloSetup.jsx    # Solo setup
   pages/Leaderboard.jsx
   spotify/api.js         # fetchTracks() — queries /api/songs per decade, calls Deezer for previews
   spotify/player.js      # playSong() / pauseSong() — Web Audio via <audio> + Deezer preview URLs
+  spotify/homeTurf.js    # Home Turf client: artist search, pool fetch, fresh previews, per-player deck
   session.js             # sessionStart / sessionEnd helpers (POST /api/session-*)
   log.js                 # Client-side event logging
 server.js                # Express 5 — all API routes + DB init
+server/homeTurf.js       # Home Turf pool building (Deezer + MusicBrainz), caching, /api/home-turf/* routes
 scripts/                 # One-off maintenance scripts (run with node --env-file=.env)
 ```
 
@@ -44,7 +47,9 @@ decade (60s/70s/80s/90s/00s/10s/20s), difficulty (1-3 legacy),
 difficulty_score (1-100, 1=famous/easy, 100=obscure/hard),
 listeners, artwork_url, album_title, is_danish, excluded, added_at
 ```
-- `source_id` formats: `spotify:{id}`, `hitlisten:{title}:{artist}`, or legacy CUID
+- `source_id` formats: `spotify:{id}`, `hitlisten:{title}:{artist}`, `deezer:{trackId}` (Home Turf), or legacy CUID
+- Home Turf rows (`deezer:*`) have `difficulty_score = NULL` so they never enter the normal game pool, plus
+  `deezer_artist_id`, `deezer_rank`, `mb_checked`. Batch scripts that score/re-date songs skip `deezer:%` rows.
 - `year_original` = rollback safety net (set once via `COALESCE(year_original, $old)`, never overwritten)
 - `excluded = true` removes a song from all game queries
 
@@ -60,6 +65,12 @@ duration_seconds, final_scores (jsonb), tracks_loaded, songs (jsonb), error
 id, name, score, difficulty, decades, created_at
 ```
 
+### `home_turf_artists` — Home Turf import cache
+```sql
+deezer_id (PK), name, picture, mbid, mb_begin, song_count, unique_songs, imported_at
+```
+Re-imported from Deezer after 30 days; years already in `songs` are never overwritten on re-import.
+
 ### `danish_tracks` — Danish chart data (currently unused in game flow)
 ```sql
 id, spotify_id (UNIQUE), title, artist, year, decade, dk_score, preview_url, album_art
@@ -74,6 +85,10 @@ id, spotify_id (UNIQUE), title, artist, year, decade, dk_score, preview_url, alb
 | `POST /api/challenge-year` | Claude Sonnet + web_search to verify/correct a song's year |
 | `GET /api/search?q=…` | Spotify search proxy (client credentials flow) |
 | `POST /api/session-start` / `POST /api/session-end` | Game telemetry |
+| `GET /api/home-turf/search?q=…` | Deezer artist search (sorted by fans) |
+| `POST /api/home-turf/artist/:deezerId/prepare` | Build/reuse an artist pool; returns count + `ok` (≥15 songs) |
+| `GET /api/home-turf/artist/:deezerId[?songs=1]` | Pool status / MusicBrainz progress (+ songs) |
+| `GET /api/home-turf/preview/:deezerTrackId` | Fresh Deezer preview URL (links expire after ~15 min) |
 
 ## Difficulty system
 
@@ -126,6 +141,16 @@ Key phases:
   - Clear winner → DONE screen
   - Tie → **Sudden death**: each tied team plays one full turn; re-check; repeat if still tied
 - Sudden death uses `suddenDeathQueue` (array of tied team indices) and `nextTeamIdx` override for non-consecutive team routing.
+
+**Home Turf** (2–4 players, `settings.homeTurf`):
+- Each player picks an artist (any Deezer artist with ≥15 playable songs, no duplicates) and only hears that artist.
+- Scoring like team mode, but the guess is the **title**: correct placement + title (honour system) = +1 card.
+- Timeline starts with a real song by the player's artist (face up), not a random year.
+- Pool per artist = top 50 songs by Deezer rank. Year = legacy `songs` year if the song exists there, else the earliest of
+  (Deezer earliest release across all albums/singles/EPs) and (MusicBrainz earliest OFFICIAL release date).
+  MusicBrainz runs in the background at ~1 req/s (~1 min per new artist); the game's loading screen waits for it
+  (max 2 min, skippable). On Queen's top 50 this gave 47/50 correct years vs 18/50 for Deezer alone.
+- Each player draws from their own deck; placed songs never repeat, missed ones are reshuffled in when the deck runs out.
 
 ## Challenge year feature
 
