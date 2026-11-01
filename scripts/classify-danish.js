@@ -59,7 +59,7 @@ async function main() {
 
   const { rows: songs } = await pool.query(`
     SELECT id, title, artist FROM songs
-    WHERE ${whereClause} AND is_danish = FALSE
+    WHERE ${whereClause} AND is_danish = FALSE AND source_id NOT LIKE 'deezer:%'
     ORDER BY artist, title
   `)
 

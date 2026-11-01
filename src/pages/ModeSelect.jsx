@@ -1,4 +1,4 @@
-export default function ModeSelect({ onParty, onSolo, onScores }) {
+export default function ModeSelect({ onParty, onSolo, onHomeTurf, onScores }) {
   return (
     <div style={{ minHeight: '100%', background: 'var(--bg)', maxWidth: 480, margin: '0 auto', display: 'flex', flexDirection: 'column' }}>
 
@@ -113,6 +113,33 @@ export default function ModeSelect({ onParty, onSolo, onScores }) {
             </div>
           </div>
           <span style={{ fontSize: '1.5rem', flexShrink: 0, zIndex: 1 }}>→</span>
+        </button>
+
+        {/* Home Turf — every player picks an artist */}
+        <button
+          onClick={onHomeTurf}
+          data-testid="mode-home-turf"
+          style={{
+            background: 'transparent', color: 'var(--ink)',
+            border: '1px dashed var(--ink)', padding: '1.1rem 1.25rem',
+            cursor: 'pointer', textAlign: 'left',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',
+          }}
+        >
+          <div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.55rem', letterSpacing: '0.2em', color: 'var(--accent)', marginBottom: '0.4rem' }}>
+              NEW · PARTY VARIANT
+            </div>
+            <div style={{
+              fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontWeight: 900,
+              fontSize: 'clamp(2.2rem, 10vw, 2.8rem)', lineHeight: 0.9, letterSpacing: '-0.03em',
+              marginBottom: '0.6rem', color: 'var(--ink)',
+            }}>Home Turf</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.58rem', letterSpacing: '0.1em', color: 'var(--muted)' }}>
+              YOUR ARTIST · NAME THE TITLE
+            </div>
+          </div>
+          <span style={{ fontSize: '1.5rem', flexShrink: 0 }}>→</span>
         </button>
 
       </div>

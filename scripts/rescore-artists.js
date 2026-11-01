@@ -58,7 +58,7 @@ EXCLUDE: [yes/no]`
 
 const { rows } = await pool.query(
   `SELECT id, title, artist, year FROM songs
-   WHERE artist ILIKE ANY($1) AND is_danish = TRUE
+   WHERE artist ILIKE ANY($1) AND is_danish = TRUE AND source_id NOT LIKE 'deezer:%'
    ORDER BY artist, year`,
   [ARTISTS.map(a => `%${a}%`)]
 )

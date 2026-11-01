@@ -1,6 +1,7 @@
 import express from 'express'
 import { join } from 'path'
 import pg from 'pg'
+import { createHomeTurf } from './server/homeTurf.js'
 
 const app = express()
 app.use(express.json())
@@ -10,6 +11,8 @@ const DIST = join(process.cwd(), 'dist')
 const pool = process.env.DATABASE_URL
   ? new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
   : null
+
+const homeTurf = createHomeTurf(pool)
 
 async function initDb() {
   if (!pool) { console.log('No DATABASE_URL — session tracking disabled'); return }
@@ -84,6 +87,8 @@ async function initDb() {
     await pool.query(`ALTER TABLE songs ADD COLUMN IF NOT EXISTS album_title TEXT`)
     await pool.query(`ALTER TABLE songs ADD COLUMN IF NOT EXISTS year_original INTEGER`)
     await pool.query(`ALTER TABLE songs ADD COLUMN IF NOT EXISTS deezer_ok BOOLEAN`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS artists TEXT[]`)
+    await homeTurf.initDb()
     console.log('DB ready')
   } catch (e) {
     console.error('DB init error:', e.message)
@@ -152,6 +157,9 @@ async function getGeo(req) {
 
 // ── Static files ───────────────────────────────────────────────
 app.use(express.static(DIST))
+
+// ── Home Turf (per-player artist pools) ───────────────────────
+homeTurf.register(app)
 
 // ── Spotify search proxy ───────────────────────────────────────
 app.get('/api/search', async (req, res) => {
@@ -474,13 +482,14 @@ app.get('/api/songs', async (req, res) => {
 app.post('/api/session/start', async (req, res) => {
   if (!pool) return res.json({ id: null })
   try {
-    const { platform, num_teams, difficulty, decades, genre, target, tracks_loaded, client_id } = req.body
+    const { platform, num_teams, difficulty, decades, genre, target, tracks_loaded, client_id, artists } = req.body
     const { country_code, city } = await getGeo(req)
     const result = await pool.query(
       `INSERT INTO sessions
-         (platform, country_code, city, num_teams, difficulty, decades, genre, target, tracks_loaded, client_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-      [platform, country_code, city, num_teams, difficulty, decades, genre, target, tracks_loaded, client_id ?? null]
+         (platform, country_code, city, num_teams, difficulty, decades, genre, target, tracks_loaded, client_id, artists)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+      [platform, country_code, city, num_teams, difficulty, decades, genre, target, tracks_loaded, client_id ?? null,
+       Array.isArray(artists) ? artists.map(String) : null]
     )
     res.json({ id: result.rows[0].id })
   } catch (e) {
