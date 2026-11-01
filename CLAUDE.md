@@ -49,7 +49,9 @@ listeners, artwork_url, album_title, is_danish, excluded, added_at
 ```
 - `source_id` formats: `spotify:{id}`, `hitlisten:{title}:{artist}`, `deezer:{trackId}` (Home Turf), or legacy CUID
 - Home Turf rows (`deezer:*`) have `difficulty_score = NULL` so they never enter the normal game pool, plus
-  `deezer_artist_id`, `deezer_rank`, `mb_checked`. Batch scripts that score/re-date songs skip `deezer:%` rows.
+  `deezer_artist_id`, `deezer_rank`, `mb_checked`, `deezer_year` (Deezer's year at import) and `year_checked`
+  (where `year` came from: NULL unchecked, `search`, `disco`, `none`, `legacy`, `challenge` — the last two are
+  never overwritten by MusicBrainz). Batch scripts that score/re-date songs skip `deezer:%` rows.
 - `year_original` = rollback safety net (set once via `COALESCE(year_original, $old)`, never overwritten)
 - `excluded = true` removes a song from all game queries
 
@@ -147,13 +149,17 @@ Key phases:
 - Each player picks an artist (any Deezer artist with ≥15 playable songs, no duplicates) and only hears that artist.
 - Scoring like team mode, but the guess is the **title**: correct placement + title (honour system) = +1 card.
 - Timeline starts with a real song by the player's artist (face up), not a random year.
-- Pool per artist = top 50 songs by Deezer rank. Year = legacy `songs` year if the song exists there, else the earliest of
-  (Deezer earliest release across all albums/singles/EPs) and (MusicBrainz earliest OFFICIAL release date).
-  MusicBrainz runs in the background at ~1 req/s (~1 min per new artist, starting when the artist is picked).
-  The game does NOT wait for it: only the start cards are checked up front (a few seconds), and every song gets its
-  checked year just before it plays (`/api/home-turf/preview/:id?artist=` jumps that song to the front of the queue).
-  While a player is on their turn, the next player's upcoming song is pre-checked.
-  On Queen's top 50 this gave 47/50 correct years vs 18/50 for Deezer alone (much weaker for huge catalogues like the Beatles).
+- Pool per artist = top 50 songs by Deezer rank. Year = legacy `songs` year if the song exists there, else the earliest
+  of Deezer's year and MusicBrainz's year. MusicBrainz runs in the background at ~1 req/s, starting when the artist
+  is picked (one shared queue, see `enrich()` in server/homeTurf.js):
+  1. Songs about to be played jump the queue for a quick per-song search (`/api/home-turf/preview/:id?artist=`).
+  2. Otherwise the artist's official studio albums/singles/EPs are scanned oldest first; the first one a song is on
+     gives its year (overrides a quick-search year). ~2–5 min for a big new artist, cached afterwards.
+  3. Songs on no studio release fall back to the per-song search.
+  Measured on top-50 pools: Beatles 49/50 correct (song search alone 12/50, Deezer 1/50), Queen 48/50.
+- The game does NOT wait for this: only the start cards are checked up front (a few seconds); while a player is on
+  their turn the next player's upcoming song is pre-checked. In the very first game with a big new artist a few
+  songs may still get the quick-search year before the scan reaches them.
 - Each player draws from their own deck; placed songs never repeat, missed ones are reshuffled in when the deck runs out.
 
 ## Challenge year feature

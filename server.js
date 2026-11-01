@@ -599,7 +599,7 @@ app.post('/api/challenge-year', async (req, res) => {
 
     if (changed && pool) {
       await pool.query(
-        `UPDATE songs SET year = $1, year_original = COALESCE(year_original, $2) WHERE source_id = $3`,
+        `UPDATE songs SET year = $1, year_original = COALESCE(year_original, $2), year_checked = 'challenge' WHERE source_id = $3`,
         [correctYear, currentYear, songId]
       )
       console.log(`[challenge] ${artist} — ${title}: ${currentYear} → ${correctYear} (${message})`)

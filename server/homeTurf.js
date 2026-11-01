@@ -220,6 +220,36 @@ export async function mbEarliestYear(title, mbid) {
   return { year: years.length ? Math.min(...years) : null, failed: false }
 }
 
+// The artist's official studio albums, singles and EPs (no compilations/live/soundtracks),
+// oldest first. Their first-release dates are curated per album, so the first studio
+// release a title appears on is a far better year than per-song searches for artists with
+// huge catalogues: measured on top-50 pools, The Beatles 49/50 correct (song search 12/50),
+// Queen 47/49 (song search 46/50). Returns null if MusicBrainz could not be reached.
+// One page (100) of the artist's release groups. Fetched page by page so that songs about
+// to be played can jump in between pages. Returns null if MusicBrainz could not be reached.
+export async function mbReleaseGroupPage(mbid, offset) {
+  const d = await mb(`/release-group?artist=${mbid}&type=album|single|ep&limit=100&offset=${offset}&fmt=json`)
+  if (!d) return null
+  return { groups: d['release-groups'] || [], total: d['release-group-count'] || 0 }
+}
+
+export function studioOnlyOldestFirst(groups) {
+  return groups
+    .filter(g => !(g['secondary-types'] || []).length && parseInt(g['first-release-date']) > 1900)
+    .sort((a, b) => a['first-release-date'].localeCompare(b['first-release-date']))
+}
+
+// Track titles of a release group's earliest official edition (later deluxe editions add
+// bonus tracks recorded years after the original). Returns null on failure.
+export async function mbReleaseGroupTitles(rgId) {
+  const d = await mb(`/release?release-group=${rgId}&status=official&inc=recordings&limit=10&fmt=json`)
+  if (!d) return null
+  const editions = (d.releases || []).filter(r => r.media?.length)
+    .sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'))
+  if (!editions.length) return []
+  return editions[0].media.flatMap(m => (m.tracks || []).map(t => t.title))
+}
+
 // ── Jobs (in-memory progress + DB/memory storage) ─────────────
 // job: { status: 'building'|'enriching'|'ready'|'error', artist, songs (memory only),
 //        progress: { done, total }, error, builtAt, ready: Promise }
@@ -243,6 +273,16 @@ export function createHomeTurf(pool) {
     await pool.query(`ALTER TABLE songs ADD COLUMN IF NOT EXISTS deezer_artist_id TEXT`)
     await pool.query(`ALTER TABLE songs ADD COLUMN IF NOT EXISTS deezer_rank INTEGER`)
     await pool.query(`ALTER TABLE songs ADD COLUMN IF NOT EXISTS mb_checked BOOLEAN`)
+    // deezer_year: Deezer's earliest year at import. year_checked: where `year` came from —
+    // NULL (unchecked), 'search' (per-song MusicBrainz search), 'disco' (studio discography
+    // scan), 'none' (MusicBrainz had nothing), 'legacy' (existing songs row), 'challenge'.
+    await pool.query(`ALTER TABLE songs ADD COLUMN IF NOT EXISTS deezer_year INTEGER`)
+    await pool.query(`ALTER TABLE songs ADD COLUMN IF NOT EXISTS year_checked TEXT`)
+    await pool.query(
+      `UPDATE songs SET deezer_year = COALESCE(year_original, year),
+                        year_checked = CASE WHEN mb_checked THEN 'search' END
+       WHERE source_id LIKE 'deezer:%' AND deezer_year IS NULL`
+    )
     await pool.query(`CREATE INDEX IF NOT EXISTS songs_deezer_artist_idx ON songs (deezer_artist_id)`)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS home_turf_artists (
@@ -262,7 +302,7 @@ export function createHomeTurf(pool) {
   async function loadRows(artistId, job) {
     if (!pool) return job?.memRows || []
     const { rows } = await pool.query(
-      `SELECT source_id, title, artist, year, album_title, artwork_url, mb_checked
+      `SELECT source_id, title, artist, year, album_title, artwork_url, mb_checked, deezer_year, year_checked
        FROM songs
        WHERE deezer_artist_id = $1 AND excluded = FALSE AND year IS NOT NULL
        ORDER BY deezer_rank DESC NULLS LAST
@@ -294,10 +334,12 @@ export function createHomeTurf(pool) {
         title: s.title,
         artist: artist.name,
         year: dbYear ?? s.year,
+        deezer_year: s.year,
         album_title: s.album,
         artwork_url: s.cover,
         rank: s.rank,
         mb_checked: dbYear != null,   // curated year → no MusicBrainz lookup needed
+        year_checked: dbYear != null ? 'legacy' : null,
       }
     })
     if (!pool) return rows
@@ -307,13 +349,14 @@ export function createHomeTurf(pool) {
         // `difficulty` is NOT NULL without a default in the production table (created by
         // scripts/import-songs.js), so it must be set explicitly. 2 = legacy "medium"; unused here.
         `INSERT INTO songs (source_id, title, artist, year, decade, difficulty, artwork_url, album_title,
-                            deezer_artist_id, deezer_rank, mb_checked, is_danish, excluded)
-         VALUES ($1,$2,$3,$4,$5,2,$6,$7,$8,$9,$10,FALSE,FALSE)
+                            deezer_artist_id, deezer_rank, mb_checked, deezer_year, year_checked, is_danish, excluded)
+         VALUES ($1,$2,$3,$4,$5,2,$6,$7,$8,$9,$10,$11,$12,FALSE,FALSE)
          ON CONFLICT (source_id) DO UPDATE SET
            title = EXCLUDED.title, artist = EXCLUDED.artist, artwork_url = EXCLUDED.artwork_url,
-           deezer_artist_id = EXCLUDED.deezer_artist_id, deezer_rank = EXCLUDED.deezer_rank`,
+           deezer_artist_id = EXCLUDED.deezer_artist_id, deezer_rank = EXCLUDED.deezer_rank,
+           deezer_year = EXCLUDED.deezer_year`,
         [r.source_id, r.title, r.artist, r.year, decadeOf(r.year), r.artwork_url, r.album_title,
-         artist.id, r.rank, r.mb_checked]
+         artist.id, r.rank, r.mb_checked, r.deezer_year, r.year_checked]
       )
     }
     // Songs that dropped out of the top list keep their row but lose their rank slot.
@@ -332,37 +375,58 @@ export function createHomeTurf(pool) {
     return rows
   }
 
-  async function setYear(job, row, year) {
-    if (year != null) row.year = year
+  async function setRowYear(row, year, how) {
+    const changed = year !== row.year
+    if (changed) console.log(`[home-turf] ${row.artist} — ${row.title}: ${row.year} → ${year} (${how})`)
+    row.year = year
+    row.year_checked = how
     row.mb_checked = true
     if (!pool) return
-    if (year != null) {
-      await pool.query(
-        `UPDATE songs SET year = $1, decade = $2, year_original = COALESCE(year_original, year), mb_checked = TRUE
-         WHERE source_id = $3`,
-        [year, decadeOf(year), row.source_id]
-      )
-    } else {
-      await pool.query(`UPDATE songs SET mb_checked = TRUE WHERE source_id = $1`, [row.source_id])
-    }
+    // The WHERE guard also protects a challenge correction made while this job was running.
+    await pool.query(
+      `UPDATE songs SET year = $1, decade = $2, year_checked = $3, mb_checked = TRUE,
+              year_original = CASE WHEN year <> $1 THEN COALESCE(year_original, year) ELSE year_original END
+       WHERE source_id = $4 AND COALESCE(year_checked, '') NOT IN ('legacy', 'challenge')`,
+      [year, decadeOf(year), how, row.source_id]
+    )
   }
 
-  // Background year check. Songs are checked one by one (MusicBrainz ~1 req/s), but any
-  // song someone is about to play can jump the queue via ensureChecked() — so the game
-  // never has to wait for the whole pool, only for the songs it actually uses.
+  // Background year check for an artist's pool, on the shared ~1 req/s MusicBrainz queue:
+  //   1. Songs about to be played jump the queue and get a quick per-song search (ensureChecked).
+  //   2. Otherwise: scan the artist's studio albums/singles/EPs oldest first; the first one a
+  //      song appears on gives its year (overrides a quick search result — it is more accurate).
+  //   3. Songs not on any studio release fall back to the per-song search.
+  // Final year = earliest of Deezer's year and the MusicBrainz year.
   async function enrich(job, rows) {
-    const pending = rows.filter(r => !r.mb_checked)
-    job.progress = { done: rows.length - pending.length, total: rows.length }
-    // Set up synchronously so ensureChecked() works from the moment the job is listed.
-    job.pending = new Map(pending.map(r => [r.source_id, r]))
+    const done = r => r.year_checked && r.year_checked !== 'search' && r.year_checked !== 'none'
+    job.rowsById = new Map(rows.map(r => [r.source_id, r]))
     job.priority = []
     job.waiters = new Map()
+    job.active = true
     const settle = id => { (job.waiters.get(id) || []).forEach(fn => fn()); job.waiters.delete(id) }
-    const settleAll = () => { for (const id of [...job.waiters.keys()]) settle(id); job.pending.clear() }
-    if (!pending.length) return
+    const settleAll = () => { job.active = false; for (const id of [...job.waiters.keys()]) settle(id) }
+    const refreshProgress = () => { job.progress = { done: rows.filter(done).length, total: rows.length } }
+    refreshProgress()
+    if (rows.every(done)) { settleAll(); return }
     job.status = 'enriching'
 
     try {
+      // Rows imported before year_checked existed: re-protect years taken from the legacy pool.
+      if (pool && job.artist) {
+        const legacy = await legacyYears(job.artist.name)
+        for (const r of rows) {
+          if (!r.year_checked || r.year_checked === 'search') {
+            const y = legacy.get(normTitle(r.title))
+            if (y != null && y === r.year) {
+              r.year_checked = 'legacy'
+              await pool.query(`UPDATE songs SET year_checked = 'legacy' WHERE source_id = $1`, [r.source_id])
+            }
+          }
+        }
+        refreshProgress()
+        if (rows.every(done)) return
+      }
+
       let mbArtist = null
       if (pool) {
         const { rows: a } = await pool.query(`SELECT mbid, mb_begin FROM home_turf_artists WHERE deezer_id = $1`, [job.artist.id])
@@ -375,46 +439,87 @@ export function createHomeTurf(pool) {
             [mbArtist.mbid, mbArtist.begin, job.artist.id])
         }
       }
-      if (!mbArtist) {
-        // Unknown to MusicBrainz — keep Deezer years. Not marked checked so a later import retries.
-        job.progress.done = rows.length
-        return
+      // Unknown to MusicBrainz — keep Deezer years (left unchecked so a later import retries).
+      if (!mbArtist) return
+
+      const base = r => r.deezer_year ?? r.year
+      // Plausibility floor: a release before the artist existed is a mismatch, not a correction.
+      const minYear = Math.min(...rows.map(base))
+      const floor = Math.min(mbArtist.begin ?? minYear, minYear) - 1
+
+      const quickCheck = async row => {
+        const { year, failed } = await mbEarliestYear(row.title, mbArtist.mbid)
+        if (failed) return
+        const y = year != null && year >= floor && year < base(row) ? year : base(row)
+        await setRowYear(row, y, year != null ? 'search' : 'none')
       }
 
-      // Plausibility floor: a release before the artist existed is a mismatch, not a correction.
-      const minDeezerYear = Math.min(...rows.map(r => r.year))
-      const floor = Math.min(mbArtist.begin ?? minDeezerYear, minDeezerYear) - 1
+      const byKey = new Map()
+      for (const r of rows) {
+        const k = normTitle(r.title)
+        if (!byKey.has(k)) byKey.set(k, [])
+        byKey.get(k).push(r)
+      }
+      let groups, gi = 0, scanning = true
+      const fetched = [], listing = { offset: 0, total: Infinity }
 
-      while (job.pending.size) {
-        let id
-        while (job.priority.length && !id) {
-          const p = job.priority.shift()
-          if (job.pending.has(p)) id = p
+      for (;;) {
+        // 1. A song someone is about to play, not checked at all yet
+        let urgent
+        while (job.priority.length && !urgent) {
+          const r = job.rowsById.get(job.priority.shift())
+          if (r && !r.year_checked) urgent = r
         }
-        const row = id ? job.pending.get(id) : job.pending.values().next().value
-        job.pending.delete(row.source_id)
-        try {
-          const { year, failed } = await mbEarliestYear(row.title, mbArtist.mbid)
-          if (!failed) {
-            const better = year != null && year >= floor && year < row.year ? year : null
-            if (better) console.log(`[home-turf] ${row.artist} — ${row.title}: ${row.year} → ${better} (MusicBrainz)`)
-            await setYear(job, row, better)
+        if (urgent) {
+          await quickCheck(urgent).catch(e => console.error('[home-turf] search:', e.message))
+          settle(urgent.source_id)
+          refreshProgress()
+          continue
+        }
+        // 2. Next step of the studio discography scan
+        if (scanning) {
+          if (groups === undefined) {
+            const page = await mbReleaseGroupPage(mbArtist.mbid, listing.offset)
+            if (!page) { scanning = false; continue }
+            fetched.push(...page.groups)
+            listing.offset += 100
+            listing.total = page.total
+            if (listing.offset >= listing.total || listing.offset >= 2000) groups = studioOnlyOldestFirst(fetched)
+            continue
           }
-        } catch (e) {
-          console.error('[home-turf] enrich:', e.message)
+          if (gi >= groups.length || rows.every(done)) { scanning = false; continue }
+          const g = groups[gi++]
+          const titles = await mbReleaseGroupTitles(g.id)
+          const y = parseInt(g['first-release-date'])
+          for (const t of titles || []) {
+            if (isVariant(t)) continue
+            for (const r of byKey.get(normTitle(t)) || []) {
+              if (done(r) || y < floor) continue
+              await setRowYear(r, Math.min(base(r), y), 'disco')
+              settle(r.source_id)
+            }
+          }
+          refreshProgress()
+          continue
         }
-        job.progress.done++
-        settle(row.source_id)
+        // 3. Not on any studio release: per-song search
+        const rest = rows.find(r => !r.year_checked)
+        if (!rest) break
+        await quickCheck(rest).catch(e => console.error('[home-turf] search:', e.message))
+        if (!rest.year_checked) rest.year_checked = 'none'   // don't retry endlessly within this run
+        settle(rest.source_id)
+        refreshProgress()
       }
     } finally {
       settleAll()
     }
   }
 
-  // Resolves once this song's year has been checked (it is moved to the front of the
-  // queue), or after timeoutMs — whichever comes first. Already-checked songs resolve at once.
+  // Resolves once this song has a checked year (it jumps the queue for a quick per-song
+  // search), or after timeoutMs — whichever comes first. Checked songs resolve at once.
   function ensureChecked(job, sourceId, timeoutMs) {
-    if (!job?.pending?.has(sourceId)) return Promise.resolve()
+    const row = job?.rowsById?.get(sourceId)
+    if (!job?.active || !row || row.year_checked) return Promise.resolve()
     job.priority.unshift(sourceId)
     return Promise.race([
       new Promise(resolve => {
