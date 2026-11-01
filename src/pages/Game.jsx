@@ -161,7 +161,7 @@ export default function Game({ settings, onQuit, onScores }) {
       if (url) {
         setTracks(prev => prev.map((t, i) => i === trackIdx ? { ...t, previewUrl: url } : t))
       } else {
-        fetch(`/api/songs/${id}/deezer-status`, {
+        fetch(`/api/songs/${encodeURIComponent(id)}/deezer-status`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ok: false }),
@@ -185,7 +185,7 @@ export default function Game({ settings, onQuit, onScores }) {
       const idx = trackIdx + ahead
       fetchPreviewUrl(next.title, next.artist).then(url => {
         if (url) setTracks(prev => prev.map((t, i) => i === idx ? { ...t, previewUrl: url } : t))
-        fetch(`/api/songs/${next.id}/deezer-status`, {
+        fetch(`/api/songs/${encodeURIComponent(next.id)}/deezer-status`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ok: !!url }),
