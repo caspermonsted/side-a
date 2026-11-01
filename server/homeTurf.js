@@ -304,9 +304,11 @@ export function createHomeTurf(pool) {
     for (const r of rows) {
       // Year is intentionally NOT overwritten on conflict — keeps challenge/MusicBrainz corrections.
       await pool.query(
-        `INSERT INTO songs (source_id, title, artist, year, decade, artwork_url, album_title,
+        // `difficulty` is NOT NULL without a default in the production table (created by
+        // scripts/import-songs.js), so it must be set explicitly. 2 = legacy "medium"; unused here.
+        `INSERT INTO songs (source_id, title, artist, year, decade, difficulty, artwork_url, album_title,
                             deezer_artist_id, deezer_rank, mb_checked, is_danish, excluded)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,FALSE,FALSE)
+         VALUES ($1,$2,$3,$4,$5,2,$6,$7,$8,$9,$10,FALSE,FALSE)
          ON CONFLICT (source_id) DO UPDATE SET
            title = EXCLUDED.title, artist = EXCLUDED.artist, artwork_url = EXCLUDED.artwork_url,
            deezer_artist_id = EXCLUDED.deezer_artist_id, deezer_rank = EXCLUDED.deezer_rank`,
