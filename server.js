@@ -196,7 +196,7 @@ app.post('/api/songs/:id/deezer-status', async (req, res) => {
   const { ok } = req.body
   if (typeof ok !== 'boolean') return res.status(400).json({ error: 'ok must be boolean' })
   try {
-    await pool.query(`UPDATE songs SET deezer_ok = $1 WHERE id = $2`, [ok, req.params.id])
+    await pool.query(`UPDATE songs SET deezer_ok = $1 WHERE source_id = $2 AND source_id NOT LIKE 'deezer:%'`, [ok, req.params.id])
     res.json({ ok: true })
   } catch {
     res.json({ ok: false })
