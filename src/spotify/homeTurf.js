@@ -21,13 +21,27 @@ export function getArtistPool(id, withSongs = false) {
 }
 
 // Deezer preview links expire after ~15 minutes, so fetch one right before playing.
-export async function fetchTrackPreview(deezerId) {
+// Also returns the song's current year: the server checks it against MusicBrainz first
+// if the background check hasn't reached this song yet.
+export async function fetchTrackPreview(deezerId, artistId) {
   try {
-    const data = await getJson(`/api/home-turf/preview/${deezerId}`, { signal: AbortSignal.timeout(8000) })
-    return data.url ?? null
+    const qs = artistId ? `?artist=${encodeURIComponent(artistId)}` : ''
+    const data = await getJson(`/api/home-turf/preview/${deezerId}${qs}`, { signal: AbortSignal.timeout(15000) })
+    return { url: data.url ?? null, year: data.year ?? null }
   } catch {
-    return null
+    return { url: null, year: null }
   }
+}
+
+// Ensures these songs (by id, e.g. 'deezer:123') have checked years; returns them.
+export async function checkSongs(artistId, ids) {
+  const data = await getJson(`/api/home-turf/artist/${artistId}/check`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+    signal: AbortSignal.timeout(20000),
+  })
+  return data.songs || []
 }
 
 function shuffle(arr) {
@@ -52,6 +66,10 @@ export function createDeck(songs) {
       const pick = top[Math.floor(Math.random() * top.length)]
       queue = queue.filter(s => s.id !== pick.id)
       return pick
+    },
+    // The song draw() would return next, without taking it (used to pre-check its year).
+    peek(excludeIds) {
+      return queue.find(s => !excludeIds.has(s.id)) || null
     },
     draw(excludeIds) {
       let idx = queue.findIndex(s => !excludeIds.has(s.id))

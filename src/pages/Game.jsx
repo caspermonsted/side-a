@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { fetchTracks, fetchPreviewUrl } from '../spotify/api'
 import { playSong, resumeSong, pauseSong } from '../spotify/player'
-import { getArtistPool, fetchTrackPreview, createDeck } from '../spotify/homeTurf'
+import { getArtistPool, fetchTrackPreview, checkSongs, createDeck } from '../spotify/homeTurf'
 
 const platform = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? 'ios' : 'desktop'
 import { log } from '../log'
@@ -149,9 +149,14 @@ export default function Game({ settings, onQuit, onScores }) {
     let cancelled = false
     const id = currentTrack.id
     if (isHomeTurf) {
-      fetchTrackPreview(currentTrack.deezerId).then(url => {
+      // Warm up the next player's song so its year is checked before the phone is passed.
+      const nextIdx = nextTeamIdx !== null ? nextTeamIdx : (teamIdx + 1) % teams.length
+      const upcoming = decks.current[nextIdx]?.peek(timelineIds(teams[nextIdx]))
+      if (upcoming) checkSongs(teams[nextIdx].artist.id, [upcoming.id]).catch(() => {})
+      // Also picks up the song's checked release year (the background check may not have reached it yet).
+      fetchTrackPreview(currentTrack.deezerId, teams[teamIdx]?.artist?.id).then(({ url, year }) => {
         if (cancelled) return
-        if (url) setTracks(prev => prev.map((t, i) => i === trackIdx ? { ...t, previewUrl: url, previewAt: Date.now() } : t))
+        if (url) setTracks(prev => prev.map((t, i) => i === trackIdx ? { ...t, previewUrl: url, previewAt: Date.now(), year: year ?? t.year } : t))
         else replaceHomeTurfTrack()
       })
       return () => { cancelled = true }
@@ -223,33 +228,31 @@ export default function Game({ settings, onQuit, onScores }) {
       .finally(() => { fetchingMore.current = false })
   }, [trackIdx, tracks.length])
 
-  // Home Turf: wait (bounded) for MusicBrainz year checks, then build one deck per player.
-  const skipYearCheck = useRef(false)
+  // Home Turf: load each player's pool and start right away. Release years are checked
+  // against MusicBrainz in the background; only the start cards are checked up front, and
+  // every other song gets its checked year just before it plays (see the READY effect).
   const previewFails = useRef(0)
   async function initHomeTurf() {
     const ids = settings.teams.map(t => t.artist.id)
-    const deadline = Date.now() + 120000
-    for (;;) {
-      const pools = await Promise.all(ids.map(id => getArtistPool(id)))
-      const bad = pools.findIndex(p => p.status === 'error')
-      if (bad !== -1) throw new Error(`Couldn't load songs for ${settings.teams[bad].artist.name}. ${pools[bad].error || ''}`)
-      const done = pools.reduce((n, p) => n + (p.progress?.done || 0), 0)
-      const total = pools.reduce((n, p) => n + (p.progress?.total || 0), 0)
-      setHtProgress({ done, total })
-      if (pools.every(p => p.status === 'ready') || skipYearCheck.current || Date.now() > deadline) break
-      await new Promise(r => setTimeout(r, 1500))
-    }
     const full = await Promise.all(ids.map(id => getArtistPool(id, true)))
     full.forEach((p, i) => {
+      if (p.status === 'error') throw new Error(`Couldn't load songs for ${settings.teams[i].artist.name}. ${p.error || ''}`)
       if (!p.songs?.length) throw new Error(`No playable songs found for ${settings.teams[i].artist.name}.`)
     })
     decks.current = full.map(p => createDeck(p.songs))
-    const timelines = decks.current.map(d => {
-      const a = d.takeAnchor()
-      return [{ id: a.id, year: a.year, title: a.title, artist: a.artist, album: a.album, albumArt: a.albumArt, isAnchor: true }]
-    })
-    const first = decks.current[0].draw(new Set([timelines[0][0].id]))
-    return { timelines, first, total: full.reduce((n, p) => n + p.songs.length, 0) }
+    const anchors = decks.current.map(d => d.takeAnchor())
+    const first = decks.current[0].draw(new Set([anchors[0].id]))
+    setHtProgress('checking')
+    // Check the start cards plus player 1's first song; on failure keep the Deezer years.
+    const checked = await Promise.all(anchors.map((a, i) =>
+      checkSongs(ids[i], i === 0 && first ? [a.id, first.id] : [a.id]).catch(() => [])
+    ))
+    const yearOf = (song, i) => checked[i].find(r => r.id === song.id)?.year ?? song.year
+    const timelines = anchors.map((a, i) => [{
+      id: a.id, year: yearOf(a, i), title: a.title, artist: a.artist,
+      album: a.album, albumArt: a.albumArt, isAnchor: true,
+    }])
+    return { timelines, first: first && { ...first, year: yearOf(first, 0) }, total: full.reduce((n, p) => n + p.songs.length, 0) }
   }
 
   useEffect(() => {
@@ -367,8 +370,12 @@ export default function Game({ settings, onQuit, onScores }) {
     try {
       if (isHomeTurf && Date.now() - (currentTrack.previewAt || 0) > 10 * 60 * 1000) {
         // Deezer preview links expire after ~15 min — refresh a stale one before playing.
-        const url = await fetchTrackPreview(currentTrack.deezerId)
+        const { url, year } = await fetchTrackPreview(currentTrack.deezerId, currentTeam?.artist?.id)
         if (!url) { replaceHomeTurfTrack(); return }
+        if (year) {
+          currentTrack.year = year
+          setTracks(prev => prev.map((t, i) => i === trackIdx ? { ...t, year } : t))
+        }
         currentTrack.previewUrl = url
         currentTrack.previewAt = Date.now()
       }
@@ -731,7 +738,6 @@ export default function Game({ settings, onQuit, onScores }) {
 
   // ─── Loading ─────────────────────────────────────────────────
   if (phase === PHASE.LOADING && isHomeTurf) {
-    const pct = htProgress?.total ? Math.round((htProgress.done / htProgress.total) * 100) : 0
     return (
       <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: 'var(--bg)', maxWidth: 480, margin: '0 auto', padding: '2rem 1.5rem', textAlign: 'center' }}>
         <Vinyl size={120} spinning color={TEAM_COLORS[0]} />
@@ -741,15 +747,9 @@ export default function Game({ settings, onQuit, onScores }) {
         <div style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: '0.95rem', color: 'var(--ink2)', marginBottom: '0.75rem' }}>
           {settings.teams.map(t => t.artist.name).join(' · ')}
         </div>
-        <div style={{ width: '100%', maxWidth: 280, height: 3, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${pct}%`, background: 'var(--accent)', transition: 'width 0.5s ease' }} />
+        <div data-testid="ht-loading" className="mono" style={{ fontSize: '0.58rem', color: 'var(--muted)', animation: 'pulse 1.4s ease-in-out infinite' }}>
+          {htProgress === 'checking' ? 'CHECKING THE START CARDS…' : 'LOADING SONGS…'}
         </div>
-        <div data-testid="ht-loading" className="mono" style={{ fontSize: '0.58rem', color: 'var(--muted)', marginTop: '0.5rem' }}>
-          {htProgress?.total ? `CHECKING RELEASE YEARS · ${htProgress.done}/${htProgress.total}` : 'LOADING SONGS…'}
-        </div>
-        <button className="btn-ghost" onClick={() => { skipYearCheck.current = true }} style={{ marginTop: '1.5rem', fontSize: '0.58rem', padding: '0.4rem 0.75rem' }}>
-          SKIP — START NOW
-        </button>
       </div>
     )
   }
@@ -1288,7 +1288,8 @@ export default function Game({ settings, onQuit, onScores }) {
       <div style={{ marginTop: 'auto', borderTop: '3px solid var(--ink)' }}>
         <div style={{ maxWidth: 480, margin: '0 auto' }}>
         {phase === PHASE.READY && (
-          currentTrack ? (
+          // Home Turf: wait until the song's preview and checked year have arrived.
+          currentTrack && (!isHomeTurf || currentTrack.previewUrl) ? (
             <button onClick={handlePlay} className="btn-reveal">
               <div><div className="mono" style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.6)', marginBottom: 2 }}>READY?</div>
               <span>Play the song</span></div>
@@ -1297,7 +1298,7 @@ export default function Game({ settings, onQuit, onScores }) {
           ) : (
             <div style={{ padding: '0.9rem 1.25rem', background: 'var(--surface)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span className="mono" style={{ fontSize: '0.62rem', color: 'var(--muted)' }}>PLEASE WAIT</span>
-              <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: '0.9rem', color: 'var(--ink2)' }}>Loading more songs…</span>
+              <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: '0.9rem', color: 'var(--ink2)' }}>{isHomeTurf ? 'Cueing up the song…' : 'Loading more songs…'}</span>
             </div>
           )
         )}

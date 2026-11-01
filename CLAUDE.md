@@ -88,7 +88,8 @@ id, spotify_id (UNIQUE), title, artist, year, decade, dk_score, preview_url, alb
 | `GET /api/home-turf/search?q=…` | Deezer artist search (sorted by fans) |
 | `POST /api/home-turf/artist/:deezerId/prepare` | Build/reuse an artist pool; returns count + `ok` (≥15 songs) |
 | `GET /api/home-turf/artist/:deezerId[?songs=1]` | Pool status / MusicBrainz progress (+ songs) |
-| `GET /api/home-turf/preview/:deezerTrackId` | Fresh Deezer preview URL (links expire after ~15 min) |
+| `GET /api/home-turf/preview/:deezerTrackId?artist=:deezerId` | Fresh Deezer preview URL (links expire after ~15 min) + the song's checked year |
+| `POST /api/home-turf/artist/:deezerId/check` | `{ ids: ['deezer:…'] }` → make sure these songs' years are checked; returns them |
 
 ## Difficulty system
 
@@ -148,8 +149,11 @@ Key phases:
 - Timeline starts with a real song by the player's artist (face up), not a random year.
 - Pool per artist = top 50 songs by Deezer rank. Year = legacy `songs` year if the song exists there, else the earliest of
   (Deezer earliest release across all albums/singles/EPs) and (MusicBrainz earliest OFFICIAL release date).
-  MusicBrainz runs in the background at ~1 req/s (~1 min per new artist); the game's loading screen waits for it
-  (max 2 min, skippable). On Queen's top 50 this gave 47/50 correct years vs 18/50 for Deezer alone.
+  MusicBrainz runs in the background at ~1 req/s (~1 min per new artist, starting when the artist is picked).
+  The game does NOT wait for it: only the start cards are checked up front (a few seconds), and every song gets its
+  checked year just before it plays (`/api/home-turf/preview/:id?artist=` jumps that song to the front of the queue).
+  While a player is on their turn, the next player's upcoming song is pre-checked.
+  On Queen's top 50 this gave 47/50 correct years vs 18/50 for Deezer alone (much weaker for huge catalogues like the Beatles).
 - Each player draws from their own deck; placed songs never repeat, missed ones are reshuffled in when the deck runs out.
 
 ## Challenge year feature

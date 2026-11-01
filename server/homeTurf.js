@@ -333,8 +333,10 @@ export function createHomeTurf(pool) {
   }
 
   async function setYear(job, row, year) {
-    if (!pool) { if (year != null) row.year = year; row.mb_checked = true; return }
-    if (year != null && year !== row.year) {
+    if (year != null) row.year = year
+    row.mb_checked = true
+    if (!pool) return
+    if (year != null) {
       await pool.query(
         `UPDATE songs SET year = $1, decade = $2, year_original = COALESCE(year_original, year), mb_checked = TRUE
          WHERE source_id = $3`,
@@ -345,47 +347,91 @@ export function createHomeTurf(pool) {
     }
   }
 
+  // Background year check. Songs are checked one by one (MusicBrainz ~1 req/s), but any
+  // song someone is about to play can jump the queue via ensureChecked() — so the game
+  // never has to wait for the whole pool, only for the songs it actually uses.
   async function enrich(job, rows) {
     const pending = rows.filter(r => !r.mb_checked)
     job.progress = { done: rows.length - pending.length, total: rows.length }
+    // Set up synchronously so ensureChecked() works from the moment the job is listed.
+    job.pending = new Map(pending.map(r => [r.source_id, r]))
+    job.priority = []
+    job.waiters = new Map()
+    const settle = id => { (job.waiters.get(id) || []).forEach(fn => fn()); job.waiters.delete(id) }
+    const settleAll = () => { for (const id of [...job.waiters.keys()]) settle(id); job.pending.clear() }
     if (!pending.length) return
     job.status = 'enriching'
 
-    let mbArtist = null
-    if (pool) {
-      const { rows: a } = await pool.query(`SELECT mbid, mb_begin FROM home_turf_artists WHERE deezer_id = $1`, [job.artist.id])
-      if (a[0]?.mbid) mbArtist = { mbid: a[0].mbid, begin: a[0].mb_begin }
-    }
-    if (!mbArtist) {
-      mbArtist = await findMbArtist(job.artist.name)
-      if (mbArtist && pool) {
-        await pool.query(`UPDATE home_turf_artists SET mbid = $1, mb_begin = $2 WHERE deezer_id = $3`,
-          [mbArtist.mbid, mbArtist.begin, job.artist.id])
+    try {
+      let mbArtist = null
+      if (pool) {
+        const { rows: a } = await pool.query(`SELECT mbid, mb_begin FROM home_turf_artists WHERE deezer_id = $1`, [job.artist.id])
+        if (a[0]?.mbid) mbArtist = { mbid: a[0].mbid, begin: a[0].mb_begin }
       }
-    }
-    if (!mbArtist) {
-      // Unknown to MusicBrainz — keep Deezer years. Not marked checked so a later import retries.
-      job.progress.done = rows.length
-      return
-    }
-
-    // Plausibility floor: a release before the artist existed is a mismatch, not a correction.
-    const minDeezerYear = Math.min(...rows.map(r => r.year))
-    const floor = Math.min(mbArtist.begin ?? minDeezerYear, minDeezerYear) - 1
-
-    for (const row of pending) {
-      try {
-        const { year, failed } = await mbEarliestYear(row.title, mbArtist.mbid)
-        if (!failed) {
-          const better = year != null && year >= floor && year < row.year ? year : null
-          if (better) console.log(`[home-turf] ${row.artist} — ${row.title}: ${row.year} → ${better} (MusicBrainz)`)
-          await setYear(job, row, better)
+      if (!mbArtist) {
+        mbArtist = await findMbArtist(job.artist.name)
+        if (mbArtist && pool) {
+          await pool.query(`UPDATE home_turf_artists SET mbid = $1, mb_begin = $2 WHERE deezer_id = $3`,
+            [mbArtist.mbid, mbArtist.begin, job.artist.id])
         }
-      } catch (e) {
-        console.error('[home-turf] enrich:', e.message)
       }
-      job.progress.done++
+      if (!mbArtist) {
+        // Unknown to MusicBrainz — keep Deezer years. Not marked checked so a later import retries.
+        job.progress.done = rows.length
+        return
+      }
+
+      // Plausibility floor: a release before the artist existed is a mismatch, not a correction.
+      const minDeezerYear = Math.min(...rows.map(r => r.year))
+      const floor = Math.min(mbArtist.begin ?? minDeezerYear, minDeezerYear) - 1
+
+      while (job.pending.size) {
+        let id
+        while (job.priority.length && !id) {
+          const p = job.priority.shift()
+          if (job.pending.has(p)) id = p
+        }
+        const row = id ? job.pending.get(id) : job.pending.values().next().value
+        job.pending.delete(row.source_id)
+        try {
+          const { year, failed } = await mbEarliestYear(row.title, mbArtist.mbid)
+          if (!failed) {
+            const better = year != null && year >= floor && year < row.year ? year : null
+            if (better) console.log(`[home-turf] ${row.artist} — ${row.title}: ${row.year} → ${better} (MusicBrainz)`)
+            await setYear(job, row, better)
+          }
+        } catch (e) {
+          console.error('[home-turf] enrich:', e.message)
+        }
+        job.progress.done++
+        settle(row.source_id)
+      }
+    } finally {
+      settleAll()
     }
+  }
+
+  // Resolves once this song's year has been checked (it is moved to the front of the
+  // queue), or after timeoutMs — whichever comes first. Already-checked songs resolve at once.
+  function ensureChecked(job, sourceId, timeoutMs) {
+    if (!job?.pending?.has(sourceId)) return Promise.resolve()
+    job.priority.unshift(sourceId)
+    return Promise.race([
+      new Promise(resolve => {
+        if (!job.waiters.has(sourceId)) job.waiters.set(sourceId, [])
+        job.waiters.get(sourceId).push(resolve)
+      }),
+      sleep(timeoutMs),
+    ])
+  }
+
+  async function currentRows(artistId, job, sourceIds) {
+    if (!pool) return (job?.memRows || []).filter(r => sourceIds.includes(r.source_id))
+    const { rows } = await pool.query(
+      `SELECT source_id, title, artist, year, album_title, artwork_url FROM songs WHERE source_id = ANY($1)`,
+      [sourceIds]
+    )
+    return rows
   }
 
   async function isFresh(artistId) {
@@ -482,11 +528,36 @@ export function createHomeTurf(pool) {
       res.json(out)
     })
 
+    // Fresh preview URL + the song's (year-checked) year. With ?artist=<deezerId>, an
+    // unchecked song jumps the MusicBrainz queue first (max ~8s) so it's never played with
+    // an unverified year.
     app.get('/api/home-turf/preview/:trackId', async (req, res) => {
       const id = req.params.trackId
       if (!/^\d+$/.test(id)) return res.json({ url: null })
-      try { res.json({ url: await trackPreview(id) }) }
-      catch { res.json({ url: null }) }
+      const artistId = /^\d+$/.test(String(req.query.artist || '')) ? String(req.query.artist) : null
+      const sourceId = `deezer:${id}`
+      try {
+        const job = artistId ? jobs.get(artistId) : null
+        const [url] = await Promise.all([
+          trackPreview(id).catch(() => null),
+          job ? ensureChecked(job, sourceId, 8000) : null,
+        ])
+        const [row] = artistId ? await currentRows(artistId, job, [sourceId]) : []
+        res.json({ url, year: row?.year ?? null })
+      } catch {
+        res.json({ url: null })
+      }
+    })
+
+    // Make sure specific songs (e.g. the start cards) have checked years; returns them.
+    app.post('/api/home-turf/artist/:id/check', async (req, res) => {
+      const id = req.params.id
+      const ids = Array.isArray(req.body?.ids) ? req.body.ids.filter(x => /^deezer:\d+$/.test(x)).slice(0, 10) : []
+      if (!/^\d+$/.test(id) || !ids.length) return res.status(400).json({ error: 'Invalid request' })
+      const job = await prepare(id)
+      if (job.status === 'error') return res.status(502).json({ error: job.error })
+      await Promise.all(ids.map(sid => ensureChecked(job, sid, 15000)))
+      res.json({ songs: (await currentRows(id, job, ids)).map(toClient) })
     })
   }
 
